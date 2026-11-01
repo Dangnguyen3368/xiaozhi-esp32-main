@@ -6,7 +6,7 @@ Bản này được làm từ [78/xiaozhi-esp32](https://github.com/78/xiaozhi-e
 
 - **Màn LCD cảm ứng 2,8"** (ILI9341 Non-IPS, cảm ứng XPT2046). Chạm vào màn để bắt đầu hoặc dừng nói chuyện, chạm lần nữa để đóng hình.
 - **Gia sư Vật lý luyện thi vào 10 chuyên** (ôn theo đề Lam Sơn, Thanh Hóa). Có 314 bài: 192 bài tự soạn chia 3 mức, cộng 122 bài lấy từ đề thi thật của các tỉnh (D01–D122). Tối đa 6 học sinh, robot lưu tiến độ từng em, có chế độ ôn bài sai và thi thử. Mỗi bài đều hiện lên màn **bảng tóm tắt đại lượng**, bài nào có hình vẽ thì hiện thêm hình.
-- **Radio Internet** (RFI tiếng Việt, luồng MP3), có **sóng nhạc** chạy trên màn khi phát nhạc hoặc radio.
+- **Radio nhạc Internet** (3 kênh nhạc không lời của SomaFM: chill, ambient, space; luồng MP3), có **sóng nhạc** chạy trên màn khi phát nhạc hoặc radio.
 - **Nhắc việc** (self.reminder.*).
 - Cho bản dùng màn OLED: **mặt Mochi** với sóng nhạc toàn màn.
 
@@ -43,7 +43,7 @@ Nếu trước đó đã build với board khác, xóa file `sdkconfig` (hoặc 
 3. Để dùng gia sư Vật lý: mở [docs/vi/prompt-gia-su-vat-ly.md](docs/vi/prompt-gia-su-vat-ly.md), chép đoạn prompt dán vào ô **Giới thiệu vai trò** trên xiaozhi.me, bấm Lưu rồi khởi động lại robot.
 4. Gọi robot bằng câu "Nǐ hǎo Xiǎozhì", rồi nói chẳng hạn:
    - "Cho anh luyện thi Vật lý", "Lấy bài D119", "Thi thử phần điện"
-   - "Mở radio", rồi chạm màn hoặc gọi robot để tắt
+   - "Mở radio" (hoặc "mở kênh ambient"), rồi chạm màn hoặc gọi robot để tắt
    - "Nhắc anh 9 giờ tối học bài"
 
 ## Sửa ngân hàng câu hỏi

@@ -227,7 +227,7 @@ private:
                 if (display_ == nullptr) {
                     return;
                 }
-                display_->SetMusicVisualizer(active, "RFI Tiếng Việt");
+                display_->SetMusicVisualizer(active, internet_radio_->station_name());
                 if (active) {
                     display_->SetMusicLevels(levels);
                 }
@@ -236,21 +236,22 @@ private:
         McpServer::GetInstance().AddTool(
             "self.radio.internet",
             "Play or stop Internet radio on the device speaker. Only use when the user explicitly "
-            "asks to listen to radio. The first supported station is RFI Vietnamese (MP3). Use "
-            "action `play` to start it and `stop` to stop playback.",
+            "asks to listen to radio or music radio. Stations (music only): chill (Groove Salad, "
+            "downtempo), ambient (Drone Zone, calm ambient), space (Deep Space One, ambient "
+            "electronic). Use action `play` with a station id to start it and `stop` to stop.",
             PropertyList({Property("action", kPropertyTypeString),
-                          Property("station", kPropertyTypeString, std::string("rfi_vi"))}),
+                          Property("station", kPropertyTypeString, std::string("chill"))}),
             [this](const PropertyList& properties) -> ReturnValue {
                 const auto action = properties["action"].value<std::string>();
                 if (action == "play") {
                     const auto station = properties["station"].value<std::string>();
-                    if (station != "rfi_vi") {
-                        return std::string("This station is not supported yet. Available: RFI Vietnamese.");
+                    if (InternetRadio::FindStation(station) == nullptr) {
+                        return "Unknown station. Available: " + InternetRadio::StationList() + ".";
                     }
                     if (!internet_radio_->Start(station.c_str())) {
                         return std::string("Could not start Internet radio. Check Wi-Fi and try again.");
                     }
-                    return std::string("Starting RFI Tiếng Việt on the device speaker.");
+                    return "Starting " + std::string(internet_radio_->station_name()) + " on the device speaker.";
                 }
                 if (action == "stop") {
                     internet_radio_->Stop();

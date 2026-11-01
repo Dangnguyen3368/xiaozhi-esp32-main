@@ -17,8 +17,12 @@
 
 namespace {
 constexpr char kTag[] = "InternetRadio";
-constexpr char kRfiVietnameseUrl[] =
-    "https://rfienvietnamien64k.ice.infomaniak.ch/rfienvietnamien-64.mp3";
+// Music-only MP3 streams from SomaFM (listener-supported, no news or talk).
+constexpr InternetRadio::Station kStations[] = {
+    {"chill", "Groove Salad", "https://ice1.somafm.com/groovesalad-128-mp3"},
+    {"ambient", "Drone Zone", "https://ice1.somafm.com/dronezone-128-mp3"},
+    {"space", "Deep Space One", "https://ice1.somafm.com/deepspaceone-128-mp3"},
+};
 constexpr size_t kInputBufferSize = 12 * 1024;
 constexpr size_t kReadBufferSize = 2048;
 constexpr size_t kDecodedBufferSize = 16 * 1024;
@@ -57,16 +61,37 @@ bool OpenRadioStream(esp_http_client_handle_t client) {
 InternetRadio::InternetRadio(AudioCodec* codec, VisualizerCallback visualizer_callback)
     : codec_(codec), visualizer_callback_(std::move(visualizer_callback)) {}
 
+const InternetRadio::Station* InternetRadio::FindStation(const std::string& id) {
+    for (const auto& station : kStations) {
+        if (id == station.id) {
+            return &station;
+        }
+    }
+    return nullptr;
+}
+
+std::string InternetRadio::StationList() {
+    std::string list;
+    for (const auto& station : kStations) {
+        if (!list.empty()) {
+            list += ", ";
+        }
+        list += std::string(station.id) + " (" + station.name + ")";
+    }
+    return list;
+}
+
 bool InternetRadio::Start(const char* station) {
-    if (codec_ == nullptr || station == nullptr || strcmp(station, "rfi_vi") != 0) {
+    const Station* found = station != nullptr ? FindStation(station) : nullptr;
+    if (codec_ == nullptr || found == nullptr) {
         return false;
     }
     if (running_.load()) {
         return true;
     }
 
-    station_name_ = "RFI Tiếng Việt";
-    stream_url_ = kRfiVietnameseUrl;
+    station_name_ = found->name;
+    stream_url_ = found->url;
     stop_requested_ = false;
     running_ = true;
     Application::GetInstance().SetRadioPlaybackActive(true);
