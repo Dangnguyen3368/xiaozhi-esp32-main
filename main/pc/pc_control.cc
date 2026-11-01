@@ -1,12 +1,16 @@
 #include "pc_control.h"
 
 #include "local_pc.h"
+#include "board.h"
+#include "display.h"
 #include "mcp_server.h"
 #include "settings.h"
 
 #include <cJSON.h>
 #include <esp_http_client.h>
 #include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <memory>
 
@@ -31,7 +35,7 @@ std::string ToJson(cJSON* json) {
 std::string Describe(const std::string& reply) {
     JsonPtr json(cJSON_Parse(reply.c_str()));
     if (!json) {
-        return "ERROR: the computer gave an unexpected reply.";
+        return "ERROR: máy tính trả lời lạ (chạy bản robot-may-tinh.bat mới chưa?).";
     }
     cJSON* error = cJSON_GetObjectItem(json.get(), "error");
     if (cJSON_IsString(error)) {
@@ -97,15 +101,88 @@ std::string PcControl::Post(const std::string& path, const std::string& body) {
         // The computer may have a new address; listen for its announcement once.
         base_url_ = local_pc::Find(4);
         if (base_url_.empty()) {
-            return "ERROR: computer not found. Ask the user to run robot-may-tinh.bat on a computer on the same Wi-Fi.";
+            return "ERROR: không thấy máy tính. Bật robot-may-tinh.bat trên máy tính cùng mạng Wi-Fi.";
         }
         reply = PostOnce(base_url_, path, body, connected);
         if (!connected) {
-            return "ERROR: cannot reach the computer at " + base_url_ +
-                   ". Check that robot-may-tinh.bat is running and the firewall allows it.";
+            return "ERROR: không kết nối được máy tính " + base_url_ +
+                   ". Kiểm tra robot-may-tinh.bat còn chạy và tường lửa đã cho phép.";
         }
     }
     return reply;
+}
+
+bool PcControl::IsPaired() const {
+    Settings settings("pc");
+    return !settings.GetString("token").empty();
+}
+
+std::string PcControl::Run(const std::string& action, const std::string& text) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (action == "pair") {
+        JsonPtr body(cJSON_CreateObject());
+        cJSON_AddStringToObject(body.get(), "code", text.c_str());
+        const std::string reply = Post("/pair", ToJson(body.get()));
+        if (reply.starts_with("ERROR:")) {
+            return reply;
+        }
+        JsonPtr json(cJSON_Parse(reply.c_str()));
+        cJSON* token = json ? cJSON_GetObjectItem(json.get(), "token") : nullptr;
+        if (!cJSON_IsString(token)) {
+            return Describe(reply);
+        }
+        Settings settings("pc", true);
+        settings.SetString("token", token->valuestring);
+        ESP_LOGI(kTag, "Paired with the computer");
+        return "Đã ghép với máy tính.";
+    }
+    if (action != "type" && action != "key" && action != "open") {
+        return "ERROR: use action pair, type, key or open.";
+    }
+    if (text.empty()) {
+        return "ERROR: `text` is empty.";
+    }
+    if (text.size() > kMaxTextLength) {
+        return "ERROR: text too long; send it in shorter parts.";
+    }
+    JsonPtr body(cJSON_CreateObject());
+    cJSON_AddStringToObject(body.get(), "action", action.c_str());
+    cJSON_AddStringToObject(body.get(), "text", text.c_str());
+    const std::string reply = Post("/control", ToJson(body.get()));
+    if (reply.starts_with("ERROR:")) {
+        return reply;
+    }
+    return Describe(reply);
+}
+
+namespace {
+struct AsyncJob {
+    std::string action;
+    std::string text;
+};
+
+void AsyncTask(void* arg) {
+    std::unique_ptr<AsyncJob> job(static_cast<AsyncJob*>(arg));
+    const std::string result = PcControl::GetInstance().Run(job->action, job->text);
+    if (auto* display = Board::GetInstance().GetDisplay()) {
+        if (result.starts_with("ERROR:")) {
+            display->ShowNotification("Lỗi:" + result.substr(6), 6000);
+        } else if (job->action == "pair") {
+            display->ShowNotification(result, 4000);
+        } else {
+            display->ShowNotification("Đã gửi tới máy tính", 2000);
+        }
+    }
+    vTaskDelete(nullptr);
+}
+}  // namespace
+
+void PcControl::RunAsync(const std::string& action, const std::string& text) {
+    auto* job = new AsyncJob{action, text};
+    if (xTaskCreate(AsyncTask, "pc_control", 6144, job, 3, nullptr) != pdPASS) {
+        delete job;
+        ESP_LOGE(kTag, "Cannot start pc_control task");
+    }
 }
 
 void PcControl::RegisterTool() {
@@ -127,40 +204,8 @@ void PcControl::RegisterTool() {
                       Property("code", kPropertyTypeString, std::string(""))}),
         [this](const PropertyList& properties) -> ToolResult {
             const auto action = properties["action"].value<std::string>();
-            const auto text = properties["text"].value<std::string>();
-            if (action == "pair") {
-                JsonPtr body(cJSON_CreateObject());
-                cJSON_AddStringToObject(body.get(), "code", properties["code"].value<std::string>().c_str());
-                const std::string reply = Post("/pair", ToJson(body.get()));
-                if (reply.starts_with("ERROR:")) {
-                    return reply;
-                }
-                JsonPtr json(cJSON_Parse(reply.c_str()));
-                cJSON* token = json ? cJSON_GetObjectItem(json.get(), "token") : nullptr;
-                if (!cJSON_IsString(token)) {
-                    return Describe(reply);
-                }
-                Settings settings("pc", true);
-                settings.SetString("token", token->valuestring);
-                ESP_LOGI(kTag, "Paired with the computer");
-                return std::string("Paired with the computer.");
-            }
-            if (action != "type" && action != "key" && action != "open") {
-                return std::string("ERROR: use action pair, type, key or open.");
-            }
-            if (text.empty()) {
-                return std::string("ERROR: `text` is empty.");
-            }
-            if (text.size() > kMaxTextLength) {
-                return std::string("ERROR: text too long; send it in shorter parts.");
-            }
-            JsonPtr body(cJSON_CreateObject());
-            cJSON_AddStringToObject(body.get(), "action", action.c_str());
-            cJSON_AddStringToObject(body.get(), "text", text.c_str());
-            const std::string reply = Post("/control", ToJson(body.get()));
-            if (reply.starts_with("ERROR:")) {
-                return reply;
-            }
-            return Describe(reply);
+            const auto text = action == "pair" ? properties["code"].value<std::string>()
+                                               : properties["text"].value<std::string>();
+            return Run(action, text);
         });
 }

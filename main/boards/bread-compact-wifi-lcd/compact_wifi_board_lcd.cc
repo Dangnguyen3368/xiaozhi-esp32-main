@@ -138,6 +138,16 @@ private:
         };
         actions.update_firmware = []() { FirmwareUpdate::GetInstance().CheckAndInstall(); };
         actions.wifi_setup = [this]() { wifi_setup_->Start(); };
+        actions.pc_command = [](const std::string& action, const std::string& text) {
+            PcControl::GetInstance().RunAsync(action, text);
+        };
+        actions.pc_paired = []() { return PcControl::GetInstance().IsPaired(); };
+        actions.start_dictation = []() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateIdle) {
+                app.ToggleChatState();
+            }
+        };
         actions.pomodoro_running = []() { return StudyTimer::GetInstance().GetState().running; };
         actions.radio_running = [this]() { return internet_radio_ && internet_radio_->IsRunning(); };
         actions.local_music_running = [this]() { return internet_radio_ && internet_radio_->IsLocal(); };

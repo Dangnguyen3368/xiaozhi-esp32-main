@@ -120,12 +120,82 @@ void StudyMenu::Hide() {
     lvgl_port_unlock();
 }
 
-void StudyMenu::Show() { Build(false); }
+void StudyMenu::Show() { Build(Page::kMain); }
 
-void StudyMenu::ShowFormulaTopics() { Build(true); }
+void StudyMenu::ShowFormulaTopics() { Build(Page::kFormulas); }
 
-void StudyMenu::Build(bool formula_topics) {
+void StudyMenu::ShowComputer() { Build(Page::kComputer); }
+
+void StudyMenu::BuildComputer(lv_obj_t* grid,
+                              const std::function<void(const char*, lv_color_t, std::function<void()>)>& add) {
+    (void)grid;
+    auto command = [this](const char* action, const char* text) {
+        return [this, action, text]() {
+            if (actions_.pc_command) {
+                actions_.pc_command(action, text);
+            }
+        };
+    };
+    add("Đọc để gõ", kBlue, [this]() {
+        Hide();
+        if (actions_.start_dictation) {
+            actions_.start_dictation();
+        }
+    });
+    add("Mở Word", kBlue, command("open", "word"));
+    add("Mở Excel", kGreen, command("open", "excel"));
+    add("Mở Notepad", kTeal, command("open", "notepad"));
+    add("Xuống dòng", kPurple, command("key", "enter"));
+    add("Tab (ô bên)", kPurple, command("key", "tab"));
+    add("Xóa lùi", kOrange, command("key", "backspace"));
+    add("Hoàn tác", kOrange, command("key", "ctrl+z"));
+    add("Lưu (Ctrl+S)", kGreen, command("key", "ctrl+s"));
+    add("Ghép máy", kTeal, [this]() {
+        pair_code_.clear();
+        Build(Page::kPair);
+    });
+    add("Quay lại", kGrey, [this]() { Show(); });
+}
+
+void StudyMenu::BuildPair(const std::function<void(const char*, lv_color_t, std::function<void()>)>& add) {
+    static const char* const kDigits[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9"};
+    for (const char* digit : kDigits) {
+        add(digit, kBlue, [this, digit]() {
+            if (pair_code_.size() < 4) {
+                pair_code_ += digit;
+            }
+            Build(Page::kPair);
+        });
+    }
+    add("Xóa", kOrange, [this]() {
+        if (!pair_code_.empty()) {
+            pair_code_.pop_back();
+        }
+        Build(Page::kPair);
+    });
+    add("0", kBlue, [this]() {
+        if (pair_code_.size() < 4) {
+            pair_code_ += "0";
+        }
+        Build(Page::kPair);
+    });
+    add("Ghép", kGreen, [this]() {
+        if (pair_code_.size() != 4) {
+            return;
+        }
+        if (actions_.pc_command) {
+            actions_.pc_command("pair", pair_code_);
+        }
+        pair_code_.clear();
+        ShowComputer();
+    });
+    add("Quay lại", kGrey, [this]() { ShowComputer(); });
+}
+
+void StudyMenu::Build(Page page) {
+    const bool formula_topics = page == Page::kFormulas;
     // Read the toggle states before taking the LVGL lock.
+    const bool paired = page == Page::kComputer && actions_.pc_paired && actions_.pc_paired();
     const bool pomodoro = actions_.pomodoro_running && actions_.pomodoro_running();
     const bool radio = actions_.radio_running && actions_.radio_running();
     const bool local_music = actions_.local_music_running && actions_.local_music_running();
@@ -142,17 +212,51 @@ void StudyMenu::Build(bool formula_topics) {
 
     using study_ui::AddButton;
     panel_ = study_ui::CreateOverlay();
-    study_ui::AddLabel(panel_, formula_topics ? "Thẻ công thức" : "Menu học tập", kInk);
-    lv_obj_t* grid = AddButtonGrid(panel_);
-    auto add = [&](const char* text, lv_color_t color, std::function<void()> action) {
-        lv_obj_t* button = AddButton(grid, text, color, std::move(action), handlers_);
-        lv_obj_set_size(button, LV_PCT(48), 36);
-        if (lv_obj_t* label = lv_obj_get_child(button, 0)) {
-            lv_obj_set_width(label, LV_PCT(100));
-            lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+    const char* title = "Menu học tập";
+    if (formula_topics) {
+        title = "Thẻ công thức";
+    } else if (page == Page::kComputer) {
+        title = paired ? "Máy tính (đã ghép)" : "Máy tính (chưa ghép: bấm Ghép máy)";
+    } else if (page == Page::kPair) {
+        title = "Nhập mã 4 số trên máy tính";
+    }
+    study_ui::AddLabel(panel_, title, kInk);
+    if (page == Page::kPair) {
+        std::string shown = pair_code_;
+        while (shown.size() < 4) {
+            shown += "_";
         }
-    };
+        std::string spaced;
+        for (char c : shown) {
+            spaced += c;
+            spaced += ' ';
+        }
+        study_ui::AddLabel(panel_, "Mã: " + spaced, kBlue);
+    }
+    lv_obj_t* grid = AddButtonGrid(panel_);
+    const int width_pct = page == Page::kPair ? 31 : 48;
+    std::function<void(const char*, lv_color_t, std::function<void()>)> add =
+        [&](const char* text, lv_color_t color, std::function<void()> action) {
+            lv_obj_t* button = AddButton(grid, text, color, std::move(action), handlers_);
+            lv_obj_set_size(button, LV_PCT(width_pct), 36);
+            if (lv_obj_t* label = lv_obj_get_child(button, 0)) {
+                lv_obj_set_width(label, LV_PCT(100));
+                lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+            }
+        };
 
+    if (page == Page::kComputer) {
+        BuildComputer(grid, add);
+        shown_ = true;
+        lvgl_port_unlock();
+        return;
+    }
+    if (page == Page::kPair) {
+        BuildPair(add);
+        shown_ = true;
+        lvgl_port_unlock();
+        return;
+    }
     if (formula_topics) {
         static const char* const kTopics[][2] = {
             {"Cơ học", "co"}, {"Nhiệt học", "nhiet"}, {"Điện học", "dien"}, {"Quang học", "quang"}};
@@ -204,6 +308,7 @@ void StudyMenu::Build(bool formula_topics) {
                 actions_.local_music();
             }
         });
+        add("Máy tính", kPurple, [this]() { ShowComputer(); });
         add("Wi-Fi", kTeal, [this]() {
             Hide();
             if (actions_.wifi_setup) {
