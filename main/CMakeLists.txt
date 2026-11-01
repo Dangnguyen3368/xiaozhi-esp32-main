@@ -72,11 +72,11 @@ list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
 # Optional Mochi face is only built for the Bread Compact WiFi OLED board.
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
-    list(APPEND SOURCES "boards/common/mochi_display.cc" "audio/internet_radio.cc")
+    list(APPEND SOURCES "boards/common/mochi_display.cc" "audio/internet_radio.cc" "pc/local_pc.cc" "pc/pc_control.cc")
 endif()
 # The LCD variant of the same board has the radio too (no Mochi face, it is OLED-only).
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
-    list(APPEND SOURCES "audio/internet_radio.cc")
+    list(APPEND SOURCES "audio/internet_radio.cc" "pc/local_pc.cc" "pc/pc_control.cc")
 endif()
 
 # Physics exam practice (self.study.* MCP tools). A board enables it by calling

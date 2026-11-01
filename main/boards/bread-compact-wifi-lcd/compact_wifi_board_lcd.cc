@@ -4,6 +4,7 @@
 #include "system_reset.h"
 #include "application.h"
 #include "audio/internet_radio.h"
+#include "pc/pc_control.h"
 #include "study/physics_tutor.h"
 #include "xpt2046_touch.h"
 #include "figure_view.h"
@@ -137,6 +138,16 @@ private:
         };
         actions.update_firmware = []() { FirmwareUpdate::GetInstance().CheckAndInstall(); };
         actions.wifi_setup = [this]() { wifi_setup_->Start(); };
+        actions.pc_command = [](const std::string& action, const std::string& text) {
+            PcControl::GetInstance().RunAsync(action, text);
+        };
+        actions.pc_paired = []() { return PcControl::GetInstance().IsPaired(); };
+        actions.start_dictation = []() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateIdle) {
+                app.ToggleChatState();
+            }
+        };
         actions.pomodoro_running = []() { return StudyTimer::GetInstance().GetState().running; };
         actions.radio_running = [this]() { return internet_radio_ && internet_radio_->IsRunning(); };
         actions.local_music_running = [this]() { return internet_radio_ && internet_radio_->IsLocal(); };
@@ -381,6 +392,7 @@ private:
         });
         timer.RegisterTool();
         FirmwareUpdate::GetInstance().RegisterTool();
+        PcControl::GetInstance().RegisterTool();
         CreateStudyMenu();
         // Created once the main loop runs: building the button looks up the theme font through
         // Board::GetInstance(), which must not be called while the board is still being built.

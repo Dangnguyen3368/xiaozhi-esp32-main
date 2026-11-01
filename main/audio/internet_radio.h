@@ -20,7 +20,7 @@ public:
         const char* url;   // direct MP3 stream (HTTP or HTTPS, no playlist); nullptr = local
     };
 
-    // Station id of the music server on the user's computer (tools/music_server/phat_nhac.py).
+    // Station id of the music server on the user's computer (tools/music_server/robot_may_tinh.py).
     static constexpr const char* kLocalStation = "local";
 
     // Returns nullptr when `id` is not a known station.

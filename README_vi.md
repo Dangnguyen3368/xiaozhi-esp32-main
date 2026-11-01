@@ -63,16 +63,27 @@ Bản firmware đầu tiên có chức năng này phải nạp bằng cáp như 
 
 Bản build trên GitHub dùng cấu hình mặc định của repo (board LCD, ILI9341 Non-IPS, tiếng Việt). Nếu mất điện lúc đang cập nhật, robot vẫn chạy bản cũ vì firmware có hai phân vùng ứng dụng.
 
-## Nghe nhạc trong máy tính
+## Chương trình trên máy tính: nghe nhạc và điều khiển máy
 
 Robot phát được nhạc MP3 của mày (nhạc Việt cũng được) từ máy tính cùng mạng Wi-Fi.
 
-1. Tạo thư mục, ví dụ `C:\ESPCode\nhac`, rồi chép `phat_nhac.py` và `phat-nhac.bat` từ `tools/music_server/` vào đó.
+1. Tạo thư mục, ví dụ `C:\ESPCode\nhac`, rồi chép `robot_may_tinh.py` và `robot-may-tinh.bat` từ `tools/music_server/` vào đó.
 2. Bỏ các file `.mp3` vào thư mục đó (có thư mục con cũng được).
-3. Bấm đúp `phat-nhac.bat`. Nếu Windows hỏi tường lửa thì tích "Private networks" rồi bấm Allow. Để cửa sổ đó mở trong lúc nghe.
+3. Bấm đúp `robot-may-tinh.bat`. Nếu Windows hỏi tường lửa thì tích "Private networks" rồi bấm Allow. Để cửa sổ đó mở trong lúc nghe.
 4. Trên robot: Menu > **Nhạc máy tính** (bấm lại lần nữa là **Bài tiếp**), hoặc nói "mở nhạc trong máy tính". Tắt nhạc bằng nút Tắt nhạc hoặc nói "tắt nhạc".
 
 Robot tự tìm máy tính qua tín hiệu UDP cổng 8766; nhạc đi qua HTTP cổng 8765. Bài được phát ngẫu nhiên, hết thì lặp lại.
+
+**Điều khiển máy tính bằng giọng nói** (chỉ Windows):
+
+1. Lần đầu: cửa sổ `robot-may-tinh.bat` hiện "Mã ghép robot: 1234". Nói với robot "ghép máy tính, mã 1234". Ghép một lần là nhớ (mã lưu trong `robot_token.txt`, đừng gửi file này cho ai).
+2. Mở Word hoặc Excel (hoặc nói "mở Word"), bấm chuột vào chỗ cần gõ, rồi đọc: "gõ vào máy tính: Hôm nay em học bài Định luật Ôm." Robot gõ đúng chữ mày đọc, có dấu.
+3. Các lệnh khác: "xuống dòng", "bấm Tab", "lưu lại" (Ctrl+S), "hoàn tác" (Ctrl+Z), "mở Excel"... Trong Excel: đọc giá trị một ô rồi nói "sang ô bên" (Tab) hoặc "xuống dòng" (Enter).
+4. Nếu chữ ra bị sai dấu thì tắt Unikey/EVKey (chuyển sang E) trong lúc robot gõ.
+
+Trong Menu có trang **Máy tính** để bấm nhanh: Đọc để gõ, Mở Word/Excel/Notepad, Xuống dòng, Tab, Xóa lùi, Hoàn tác, Lưu, và **Ghép máy** (nhập mã 4 số bằng bàn phím trên màn) nếu không muốn đọc mã.
+
+Robot chỉ gõ, bấm phím và mở Word, Excel, PowerPoint, Notepad, máy tính bỏ túi, trình duyệt; không chạy được lệnh nào khác.
 
 ## Sửa ngân hàng câu hỏi
 
