@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include <esp_timer.h>
+
 struct PhysicsFigure;
 
 // Exam practice for the grade-10 specialized physics exam: serves problems from the
@@ -16,19 +18,57 @@ class PhysicsTutor {
 public:
     static PhysicsTutor& GetInstance();
 
-    // Registers the self.study.* MCP tools. Call once from the board's InitializeTools().
+    // Registers the self.study.* MCP tools and starts the daily review check. Call once from
+    // the board's InitializeTools().
     void RegisterTools();
 
+    // What a colour screen shows: a problem (with its quick-action buttons) or a formula sheet.
+    enum class ScreenKind { kProblem, kFormulas };
+
     // Boards with a colour screen show problem figures through this callback. It is called
-    // with the problem's figure (nullptr to hide it) and a short caption.
-    using FigureViewer = std::function<void(const PhysicsFigure* figure, const std::string& caption)>;
+    // with the image (nullptr to hide it), a short caption and what the image is.
+    using FigureViewer =
+        std::function<void(const PhysicsFigure* figure, const std::string& caption, ScreenKind kind)>;
     void SetFigureViewer(FigureViewer viewer);
+
+    struct TopicProgress {
+        const char* name;
+        int done;
+        int total;
+        int need_review;
+    };
+    struct ProgressReport {
+        std::string learner;
+        std::vector<TopicProgress> topics;
+        int done = 0;
+        int total = 0;
+        int need_review = 0;
+        int due_today = 0;
+    };
+    // Boards with a colour screen draw the progress chart through this callback.
+    using ProgressViewer = std::function<void(const ProgressReport& report)>;
+    void SetProgressViewer(ProgressViewer viewer);
+
+    // Progress of the active learner; also draws it when a progress viewer is set.
+    ProgressReport ShowProgress();
+    // Shows the formula sheet of a topic key (co, nhiet, dien, quang); false if unknown.
+    bool ShowFormulas(const std::string& topic);
+
+    // A wrong problem waiting for spaced review: due again on `due_day` (days since the
+    // epoch, local time). Each correct review moves it up a box and spaces it further apart;
+    // after the last box it leaves the review list.
+    struct ReviewItem {
+        uint16_t index;
+        uint8_t box;
+        int32_t due_day;
+    };
 
 private:
     struct Learner {
         std::string name;
         std::vector<uint8_t> done;   // one bit per problem, indexed by bank position
-        std::vector<uint8_t> wrong;  // set while the last attempt was wrong
+        std::vector<uint8_t> wrong;  // set while the problem is in the review list
+        std::vector<ReviewItem> review;
     };
 
     PhysicsTutor() = default;
@@ -41,13 +81,24 @@ private:
     Learner MakeLearner(const std::string& name) const;
 
     std::vector<size_t> Candidates(int topic, int level, bool only_new, bool only_wrong);
+    std::vector<size_t> DueReviews(const Learner& learner, int topic) const;
+    void RecordResult(Learner& learner, size_t index, bool correct);
     int FindProblem(const std::string& id) const;
     void ShowOnScreen(size_t index);
 
+    void StartDailyReviewTimer();
+    void CheckDailyReview();
+
     std::vector<Learner> learners_;
     FigureViewer figure_viewer_;
+    ProgressViewer progress_viewer_;
     size_t current_ = 0;
     bool loaded_ = false;
+
+    // Daily review reminder: minutes after local midnight, or -1 when off.
+    int review_minute_ = -1;
+    int32_t review_fired_day_ = -1;
+    esp_timer_handle_t review_timer_ = nullptr;
 };
 
 #endif  // PHYSICS_TUTOR_H

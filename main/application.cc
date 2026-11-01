@@ -1391,6 +1391,27 @@ void Application::WakeWordInvoke(const std::string& wake_word) {
     }
 }
 
+void Application::AskAssistant(const std::string& text) {
+    Schedule([this, text]() {
+        const auto state = GetDeviceState();
+        if (state == kDeviceStateIdle || state == kDeviceStateNotifying) {
+            // Opening the conversation sends the text as the detected wake phrase.
+            WakeWordInvoke(text);
+            return;
+        }
+        if (!protocol_ || !protocol_->IsAudioChannelOpened()) {
+            return;
+        }
+        if (state == kDeviceStateSpeaking) {
+            AbortSpeaking(kAbortReasonNone);
+        } else if (state != kDeviceStateListening) {
+            return;
+        }
+        ESP_LOGI(TAG, "Ask assistant: %s", text.c_str());
+        protocol_->SendWakeWordDetected(text);
+    });
+}
+
 bool Application::CanEnterSleepMode() {
     if (GetDeviceState() != kDeviceStateIdle) {
         return false;

@@ -4,6 +4,7 @@
 #include <esp_timer.h>
 
 #include <algorithm>
+#include <cstdlib>
 
 #define TAG "Xpt2046Touch"
 
@@ -20,6 +21,9 @@ constexpr int64_t kMaxTapUs = 800 * 1000;
 // many idle polls, and ignore taps that follow the previous one too closely.
 constexpr int kReleasePolls = 3;
 constexpr int64_t kMinTapGapUs = 400 * 1000;
+constexpr int64_t kLongPressUs = 1000 * 1000;
+// Screen pixels a finger may drift during a tap or long press before it counts as a slide.
+constexpr int kMoveThreshold = 15;
 }  // namespace
 
 Xpt2046Touch::Xpt2046Touch(spi_host_device_t host, gpio_num_t cs, gpio_num_t irq, int width,
@@ -108,17 +112,30 @@ void Xpt2046Touch::ReadCallback(lv_indev_t* indev, lv_indev_data_t* data) {
         self->MapToScreen(raw_x, raw_y, self->last_x_, self->last_y_);
         self->last_raw_x_ = raw_x;
         self->last_raw_y_ = raw_y;
+        const int64_t now = esp_timer_get_time();
         if (!self->pressed_) {
-            self->press_start_us_ = esp_timer_get_time();
+            self->press_start_us_ = now;
+            self->press_start_x_ = self->last_x_;
+            self->press_start_y_ = self->last_y_;
+            self->moved_ = false;
+            self->long_fired_ = false;
+        } else if (std::abs(self->last_x_ - self->press_start_x_) > kMoveThreshold ||
+                   std::abs(self->last_y_ - self->press_start_y_) > kMoveThreshold) {
+            self->moved_ = true;
         }
         self->pressed_ = true;
         self->idle_polls_ = 0;
+        if (self->on_long_press_ && !self->moved_ && !self->long_fired_ &&
+            now - self->press_start_us_ >= kLongPressUs) {
+            self->long_fired_ = true;
+            self->on_long_press_();
+        }
     } else if (self->pressed_ && ++self->idle_polls_ >= kReleasePolls) {
         self->pressed_ = false;
         const int64_t now = esp_timer_get_time();
         ESP_LOGI(TAG, "Touch raw x=%d y=%d -> screen x=%d y=%d", self->last_raw_x_,
                  self->last_raw_y_, self->last_x_, self->last_y_);
-        if (self->on_tap_ && now - self->press_start_us_ < kMaxTapUs &&
+        if (self->on_tap_ && !self->moved_ && !self->long_fired_ && now - self->press_start_us_ < kMaxTapUs &&
             now - self->last_tap_us_ > kMinTapGapUs) {
             self->last_tap_us_ = now;
             self->on_tap_(self->last_x_, self->last_y_);

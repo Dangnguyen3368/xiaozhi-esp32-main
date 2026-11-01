@@ -24,6 +24,9 @@ public:
 
     // Called (from the LVGL task) for a short tap that no widget handled specially.
     void OnTap(std::function<void(int x, int y)> callback) { on_tap_ = std::move(callback); }
+    // Called (from the LVGL task) once when a finger stays still on the screen for about a
+    // second. That press then no longer counts as a tap.
+    void OnLongPress(std::function<void()> callback) { on_long_press_ = std::move(callback); }
 
 private:
     static void ReadCallback(lv_indev_t* indev, lv_indev_data_t* data);
@@ -37,6 +40,7 @@ private:
     int height_;
     Calibration calibration_;
     std::function<void(int, int)> on_tap_;
+    std::function<void()> on_long_press_;
 
     bool pressed_ = false;
     int last_x_ = 0;
@@ -44,6 +48,10 @@ private:
     int last_raw_x_ = 0;
     int last_raw_y_ = 0;
     int64_t press_start_us_ = 0;
+    int press_start_x_ = 0;
+    int press_start_y_ = 0;
+    bool moved_ = false;       // finger slid away from where it landed (a scroll, not a tap)
+    bool long_fired_ = false;  // the long-press callback already ran for this press
     int64_t last_tap_us_ = 0;
     int idle_polls_ = 0;
 };

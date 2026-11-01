@@ -7,6 +7,7 @@
 #include "application.h"
 #include "audio/internet_radio.h"
 #include "study/physics_tutor.h"
+#include "study/study_timer.h"
 #include "button.h"
 #include "config.h"
 #include "mcp_server.h"
@@ -249,6 +250,20 @@ private:
             });
 
         PhysicsTutor::GetInstance().RegisterTools();
+
+        // Pomodoro study timer; its calm music uses the radio.
+        auto& timer = StudyTimer::GetInstance();
+        timer.SetMusicControl([this](bool on) {
+            if (!internet_radio_) {
+                return;
+            }
+            if (on) {
+                internet_radio_->Start("ambient");
+            } else {
+                internet_radio_->Stop();
+            }
+        });
+        timer.RegisterTool();
     }
 
 public:

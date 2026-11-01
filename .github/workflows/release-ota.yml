@@ -1,0 +1,94 @@
+name: Release OTA firmware
+
+# Builds the firmware of this robot after every change on main and publishes it as the latest
+# GitHub release. The robot reads version.txt from that release and installs the binary over
+# Wi-Fi (self.firmware.github_update tool, or "Cập nhật" in the touch menu).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "main/**"
+      - "CMakeLists.txt"
+      - "sdkconfig.defaults*"
+      - "partitions/**"
+      - ".github/workflows/release-ota.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: release-ota
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  BOARD: bread-compact-wifi-lcd
+  LANGUAGE: vi-VN
+  BUILD_OPTIONS: '{"display_model":"LCD_ILI9341_240X320_NO_IPS"}'
+
+jobs:
+  build:
+    name: Build firmware
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.1
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - id: version
+        name: Set firmware version
+        shell: bash
+        run: |
+          base=$(sed -n 's/^set(PROJECT_VER "\(.*\)")/\1/p' CMakeLists.txt)
+          version="${base}.${{ github.run_number }}"
+          sed -i "s/^set(PROJECT_VER \".*\")/set(PROJECT_VER \"${version}\")/" CMakeLists.txt
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Firmware version ${version}"
+
+      - name: Build
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/build.py "$BOARD" --name "$BOARD" --language "$LANGUAGE" \
+            --build-options-json "$BUILD_OPTIONS"
+          mkdir -p out
+          cp build/xiaozhi.bin "out/xiaozhi-${BOARD}.bin"
+          cp build/merged-binary.bin "out/merged-binary-${BOARD}.bin"
+          echo "${{ steps.version.outputs.version }}" > out/version.txt
+
+      - name: Upload build
+        uses: actions/upload-artifact@v7
+        with:
+          name: ota-firmware
+          path: out/
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build
+        uses: actions/download-artifact@v7
+        with:
+          name: ota-firmware
+          path: out
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" out/* \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Firmware ${VERSION}" \
+            --notes "Bản build tự động cho ${BOARD} (${LANGUAGE}). Robot tự cập nhật qua Wi-Fi; merged-binary dùng để nạp bằng cáp." \
+            --latest

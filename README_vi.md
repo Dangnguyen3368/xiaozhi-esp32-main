@@ -4,7 +4,12 @@ Bản này được làm từ [78/xiaozhi-esp32](https://github.com/78/xiaozhi-e
 
 ## Chức năng thêm vào
 
-- **Màn LCD cảm ứng 2,8"** (ILI9341 Non-IPS, cảm ứng XPT2046). Chạm vào màn để bắt đầu hoặc dừng nói chuyện, chạm lần nữa để đóng hình.
+- **Màn LCD cảm ứng 2,8"** (ILI9341 Non-IPS, cảm ứng XPT2046). Chạm vào màn để bắt đầu hoặc dừng nói chuyện. **Giữ tay khoảng 1 giây** để mở menu học tập: Luyện thi, Ôn bài sai, Hẹn giờ học, Công thức, Tiến độ, Mở/Tắt nhạc, Cập nhật.
+- Dưới mỗi bài hiện trên màn có nút **Gợi ý**, **Lời giải**, **Bài khác** và **Đóng**.
+- **Hẹn giờ học Pomodoro**: 25 phút học, 5 phút nghỉ (đổi được bằng lời), có đồng hồ đếm ngược trên màn và nhạc nhẹ khi học.
+- **Ôn bài sai theo lịch**: bài làm sai được hỏi lại sau 1, 2, 4 rồi 8 ngày. Có thể hẹn giờ để robot tự nhắc ôn mỗi ngày ("Nhắc em ôn bài lúc 8 giờ tối").
+- **Thẻ công thức** Cơ, Nhiệt, Điện, Quang hiện trên màn, và **biểu đồ tiến độ** từng học sinh.
+- **Cập nhật firmware qua Wi-Fi**: mỗi lần code trên nhánh `main` thay đổi, GitHub Actions tự build và đăng bản phát hành. Nói "cập nhật phần mềm" hoặc bấm **Cập nhật** trong menu, robot sẽ tải bản mới và tự khởi động lại.
 - **Gia sư Vật lý luyện thi vào 10 chuyên** (ôn theo đề Lam Sơn, Thanh Hóa). Có 314 bài: 192 bài tự soạn chia 3 mức, cộng 122 bài lấy từ đề thi thật của các tỉnh (D01–D122). Tối đa 6 học sinh, robot lưu tiến độ từng em, có chế độ ôn bài sai và thi thử. Mỗi bài đều hiện lên màn **bảng tóm tắt đại lượng**, bài nào có hình vẽ thì hiện thêm hình.
 - **Radio nhạc Internet** (3 kênh nhạc không lời của SomaFM: chill, ambient, space; luồng MP3), có **sóng nhạc** chạy trên màn khi phát nhạc hoặc radio.
 - **Nhắc việc** (self.reminder.*).
@@ -45,6 +50,17 @@ Nếu trước đó đã build với board khác, xóa file `sdkconfig` (hoặc 
    - "Cho anh luyện thi Vật lý", "Lấy bài D119", "Thi thử phần điện"
    - "Mở radio" (hoặc "mở kênh ambient"), rồi chạm màn hoặc gọi robot để tắt
    - "Nhắc anh 9 giờ tối học bài"
+   - "Hẹn giờ học 25 phút", "Cho em xem công thức phần điện", "Em học đến đâu rồi"
+   - "Kiểm tra cập nhật phần mềm"
+
+## Cập nhật qua Wi-Fi
+
+Bản firmware đầu tiên có chức năng này phải nạp bằng cáp như bình thường. Từ đó trở đi:
+
+1. Merge code vào `main`. Workflow **Release OTA firmware** (tab Actions) build khoảng 10 phút rồi đăng bản phát hành có `version.txt`, `xiaozhi-bread-compact-wifi-lcd.bin` (để robot tải) và `merged-binary-...bin` (để nạp bằng cáp khi cần).
+2. Bảo robot "cập nhật phần mềm" hoặc bấm **Cập nhật** trong menu. Robot so phiên bản của nó với bản trên GitHub, nếu mới hơn thì tải về và khởi động lại.
+
+Bản build trên GitHub dùng cấu hình mặc định của repo (board LCD, ILI9341 Non-IPS, tiếng Việt). Nếu mất điện lúc đang cập nhật, robot vẫn chạy bản cũ vì firmware có hai phân vùng ứng dụng.
 
 ## Sửa ngân hàng câu hỏi
 
