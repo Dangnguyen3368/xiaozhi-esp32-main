@@ -314,9 +314,8 @@ void MenuButton::Create(std::function<void()> on_click) {
     lv_obj_t* button = study_ui::AddButton(lv_layer_top(), "Menu", kBlue, std::move(on_click), handlers_);
     lv_obj_set_size(button, kWidth, kHeight);
     lv_obj_set_style_bg_opa(button, LV_OPA_80, 0);
-    if (const lv_font_t* font = study_ui::TextFont()) {
-        lv_obj_set_style_text_font(button, font, 0);
-    }
+    // Keep LVGL's built-in font: the theme font is replaced once the assets partition loads
+    // after boot, which would leave this long-lived button pointing at a freed font.
     lv_obj_align(button, LV_ALIGN_BOTTOM_RIGHT, -kMargin, -kMargin);
     // Overlays opened later sit above it, so it never covers their buttons.
     lv_obj_move_to_index(button, 0);
