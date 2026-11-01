@@ -92,11 +92,19 @@ private:
                (wifi_setup_ && wifi_setup_->IsShown());
     }
 
+    // The server ignores text sent as a wake phrase in the middle of a chat, so the problem is
+    // picked and shown here; the assistant is only told its id so it can help with it.
+    static void ShowProblemAndTell(bool review) {
+        const auto id = PhysicsTutor::GetInstance().PickOnScreen(review);
+        if (!id.empty()) {
+            Application::GetInstance().AskAssistant("Em đang làm bài " + id);
+        }
+    }
+
     void CreateStudyMenu() {
-        auto ask = [](const char* text) { Application::GetInstance().AskAssistant(text); };
         StudyMenu::Actions actions;
-        actions.practice = [ask]() { ask("Cho em luyện thi Vật lý"); };
-        actions.review = [ask]() { ask("Cho em ôn bài sai"); };
+        actions.practice = []() { ShowProblemAndTell(false); };
+        actions.review = []() { ShowProblemAndTell(true); };
         actions.toggle_pomodoro = []() {
             auto& timer = StudyTimer::GetInstance();
             if (timer.GetState().running) {
@@ -335,7 +343,7 @@ private:
                     figure_view_.ShowNote(title, text);
                 }
             },
-            []() { Application::GetInstance().AskAssistant("Cho em bài khác"); },
+            []() { ShowProblemAndTell(false); },
         });
         tutor.RegisterTools();
 

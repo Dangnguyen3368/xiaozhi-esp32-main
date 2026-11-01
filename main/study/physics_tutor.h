@@ -59,6 +59,9 @@ public:
     // shown yet.
     bool NextHintOnScreen(std::string& title, std::string& text);
     bool SolutionOnScreen(std::string& title, std::string& text);
+    // Picks a problem for the current learner like get_problem (new or spaced review) and shows
+    // it on screen without the server. Returns its id, or "" when there is none.
+    std::string PickOnScreen(bool review);
 
     // A wrong problem waiting for spaced review: due again on `due_day` (days since the
     // epoch, local time). Each correct review moves it up a box and spaces it further apart;
@@ -90,6 +93,7 @@ private:
     std::vector<size_t> DueReviews(const Learner& learner, int topic) const;
     void RecordResult(Learner& learner, size_t index, bool correct);
     int FindProblem(const std::string& id) const;
+    int PickProblem(const std::string& mode, int topic, int level, const char*& note, std::string& error);
     void ShowOnScreen(size_t index);
 
     void StartDailyReviewTimer();
