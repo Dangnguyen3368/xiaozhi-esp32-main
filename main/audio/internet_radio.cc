@@ -87,7 +87,18 @@ bool InternetRadio::Start(const char* station) {
         return false;
     }
     if (running_.load()) {
-        return true;
+        if (stream_url_ == found->url) {
+            return true;
+        }
+        // Switching station: let the old stream task finish (an HTTP read can block for up
+        // to its 4 s timeout) before reusing the codec.
+        stop_requested_ = true;
+        for (int waited_ms = 0; running_.load() && waited_ms < 5000; waited_ms += 50) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        if (running_.load()) {
+            return false;
+        }
     }
 
     station_name_ = found->name;
