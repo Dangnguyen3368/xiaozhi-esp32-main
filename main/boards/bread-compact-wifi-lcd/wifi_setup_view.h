@@ -34,6 +34,7 @@ private:
 
     static void ScanTask(void* arg);
     bool Scan();
+    static bool FetchHotspotList(std::string& body);
 
     // Each builder replaces what is on screen; call with the LVGL lock held.
     void BuildMessage(const std::string& title, const std::string& text, bool with_buttons);

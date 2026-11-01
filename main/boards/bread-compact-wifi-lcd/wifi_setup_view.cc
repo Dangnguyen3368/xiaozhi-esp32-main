@@ -6,6 +6,8 @@
 #include "study_ui.h"
 
 #include <esp_log.h>
+#include <cJSON.h>
+#include <esp_http_client.h>
 #include <esp_lvgl_port.h>
 #include <esp_system.h>
 #include <esp_wifi.h>
@@ -25,7 +27,7 @@ constexpr int kButtonHeight = 34;
 constexpr size_t kMaxNetworks = 12;
 constexpr size_t kMaxPasswordLength = 63;
 constexpr int kConfigModeWaitMs = 10000;
-constexpr int kScanAttempts = 4;
+constexpr int kScanAttempts = 6;
 
 const lv_color_t kInk = lv_color_hex(0x202020);
 const lv_color_t kBlue = lv_color_hex(0x1E88E5);
@@ -73,7 +75,7 @@ const char* SignalText(int rssi) {
 void RestartSoon() {
     xTaskCreate(
         [](void*) {
-            vTaskDelay(pdMS_TO_TICKS(1500));
+            vTaskDelay(pdMS_TO_TICKS(3000));
             esp_restart();
         },
         "wifi_setup_restart", 2048, nullptr, 5, nullptr);
@@ -105,7 +107,7 @@ void WifiSetupView::ScanTask(void* arg) {
             ready = wifi.IsConfigMode();
         }
         // Let the hotspot finish its own first scan before starting ours.
-        vTaskDelay(pdMS_TO_TICKS(1500));
+        vTaskDelay(pdMS_TO_TICKS(3000));
     }
     const bool found = ready && self->Scan();
     self->scanning_ = false;
@@ -122,55 +124,85 @@ void WifiSetupView::ScanTask(void* arg) {
     vTaskDelete(nullptr);
 }
 
-bool WifiSetupView::Scan() {
-    wifi_scan_config_t config = {};
-    config.show_hidden = false;
-    config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
-    config.scan_time.active.min = 100;
-    config.scan_time.active.max = 300;
+// The hotspot mode keeps its own scan list and its Wi-Fi event handler reads (and so clears)
+// every scan result, ours included. So instead of scanning ourselves we ask the hotspot's
+// web page for its list, the same list the phone setup shows, over the loopback address.
+bool WifiSetupView::FetchHotspotList(std::string& body) {
+    esp_http_client_config_t config = {};
+    config.url = "http://127.0.0.1/scan";
+    config.timeout_ms = 3000;
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (client == nullptr) {
+        return false;
+    }
+    bool ok = false;
+    if (esp_http_client_open(client, 0) == ESP_OK) {
+        esp_http_client_fetch_headers(client);
+        if (esp_http_client_get_status_code(client) == 200) {
+            char buffer[256];
+            int read = 0;
+            body.clear();
+            while ((read = esp_http_client_read(client, buffer, sizeof(buffer))) > 0) {
+                body.append(buffer, read);
+                if (body.size() > 16 * 1024) {
+                    break;
+                }
+            }
+            ok = !body.empty();
+        } else {
+            ESP_LOGW(TAG, "Scan list HTTP %d", esp_http_client_get_status_code(client));
+        }
+    } else {
+        ESP_LOGW(TAG, "Cannot open hotspot scan list");
+    }
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+    return ok;
+}
 
+bool WifiSetupView::Scan() {
     for (int attempt = 0; attempt < kScanAttempts; ++attempt) {
         if (attempt > 0) {
+            // Ask for a fresh scan; the hotspot's handler stores the result for us.
+            esp_wifi_scan_start(nullptr, true);
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+        std::string body;
+        if (!FetchHotspotList(body)) {
             vTaskDelay(pdMS_TO_TICKS(1000));
-        }
-        // Blocking scan. The hotspot also scans now and then, so a busy radio just retries.
-        esp_err_t err = esp_wifi_scan_start(&config, true);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "Scan failed: %s", esp_err_to_name(err));
             continue;
         }
-        uint16_t count = 0;
-        esp_wifi_scan_get_ap_num(&count);
-        if (count == 0) {
-            continue;
-        }
-        std::vector<wifi_ap_record_t> records(count);
-        if (esp_wifi_scan_get_ap_records(&count, records.data()) != ESP_OK || count == 0) {
-            continue;  // the hotspot's own handler took the results first
-        }
-        records.resize(count);
-
+        cJSON* root = cJSON_Parse(body.c_str());
+        cJSON* aps = root ? cJSON_GetObjectItem(root, "aps") : nullptr;
         access_points_.clear();
-        for (const auto& record : records) {
-            const std::string ssid(reinterpret_cast<const char*>(record.ssid),
-                                   strnlen(reinterpret_cast<const char*>(record.ssid), sizeof(record.ssid)));
-            if (ssid.empty()) {
-                continue;
-            }
-            auto it = std::find_if(access_points_.begin(), access_points_.end(),
-                                   [&ssid](const AccessPoint& ap) { return ap.ssid == ssid; });
-            if (it == access_points_.end()) {
-                access_points_.push_back({ssid, record.rssi, record.authmode == WIFI_AUTH_OPEN});
-            } else if (record.rssi > it->rssi) {
-                it->rssi = record.rssi;
+        if (cJSON_IsArray(aps)) {
+            cJSON* item = nullptr;
+            cJSON_ArrayForEach(item, aps) {
+                cJSON* ssid_item = cJSON_GetObjectItem(item, "ssid");
+                cJSON* rssi_item = cJSON_GetObjectItem(item, "rssi");
+                cJSON* auth_item = cJSON_GetObjectItem(item, "authmode");
+                if (!cJSON_IsString(ssid_item) || ssid_item->valuestring[0] == '\0') {
+                    continue;
+                }
+                const std::string ssid(ssid_item->valuestring);
+                const int rssi = cJSON_IsNumber(rssi_item) ? rssi_item->valueint : -100;
+                const bool open = cJSON_IsNumber(auth_item) && auth_item->valueint == WIFI_AUTH_OPEN;
+                auto it = std::find_if(access_points_.begin(), access_points_.end(),
+                                       [&ssid](const AccessPoint& ap) { return ap.ssid == ssid; });
+                if (it == access_points_.end()) {
+                    access_points_.push_back({ssid, rssi, open});
+                } else if (rssi > it->rssi) {
+                    it->rssi = rssi;
+                }
             }
         }
+        cJSON_Delete(root);
         std::sort(access_points_.begin(), access_points_.end(),
                   [](const AccessPoint& a, const AccessPoint& b) { return a.rssi > b.rssi; });
         if (access_points_.size() > kMaxNetworks) {
             access_points_.resize(kMaxNetworks);
         }
-        ESP_LOGI(TAG, "Found %u networks", static_cast<unsigned>(access_points_.size()));
+        ESP_LOGI(TAG, "Found %u networks (try %d)", static_cast<unsigned>(access_points_.size()), attempt + 1);
         if (!access_points_.empty()) {
             return true;
         }
