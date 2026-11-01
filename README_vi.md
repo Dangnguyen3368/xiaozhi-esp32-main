@@ -81,7 +81,7 @@ Robot tự tìm máy tính qua tín hiệu UDP cổng 8766; nhạc đi qua HTTP 
 3. Các lệnh khác: "xuống dòng", "bấm Tab", "lưu lại" (Ctrl+S), "hoàn tác" (Ctrl+Z), "mở Excel"... Trong Excel: đọc giá trị một ô rồi nói "sang ô bên" (Tab) hoặc "xuống dòng" (Enter).
 4. Nếu chữ ra bị sai dấu thì tắt Unikey/EVKey (chuyển sang E) trong lúc robot gõ.
 
-Trong Menu có trang **Máy tính** để bấm nhanh: Đọc để gõ, Mở Word/Excel/Notepad, Xuống dòng, Tab, Xóa lùi, Hoàn tác, Lưu, và **Ghép máy** (nhập mã 4 số bằng bàn phím trên màn) nếu không muốn đọc mã.
+Trong Menu có trang **Máy tính** để bấm nhanh: Đọc để gõ, Mở Word/Excel/Notepad, Xuống dòng, Tab, Xóa lùi, Hoàn tác, Lưu, Đóng cửa sổ (Alt+F4), và **Ghép máy** (nhập mã 4 số bằng bàn phím trên màn) nếu không muốn đọc mã.
 
 Robot chỉ gõ, bấm phím và mở Word, Excel, PowerPoint, Notepad, máy tính bỏ túi, trình duyệt; không chạy được lệnh nào khác.
 

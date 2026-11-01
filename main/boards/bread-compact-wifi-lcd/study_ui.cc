@@ -150,6 +150,7 @@ void StudyMenu::BuildComputer(lv_obj_t* grid,
     add("Xóa lùi", kOrange, command("key", "backspace"));
     add("Hoàn tác", kOrange, command("key", "ctrl+z"));
     add("Lưu (Ctrl+S)", kGreen, command("key", "ctrl+s"));
+    add("Đóng cửa sổ", kRed, command("key", "alt+f4"));
     add("Ghép máy", kTeal, [this]() {
         pair_code_.clear();
         Build(Page::kPair);
