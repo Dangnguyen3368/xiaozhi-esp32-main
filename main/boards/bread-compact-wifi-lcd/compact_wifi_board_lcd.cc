@@ -354,14 +354,16 @@ private:
         timer.RegisterTool();
         FirmwareUpdate::GetInstance().RegisterTool();
         CreateStudyMenu();
-        {
+        // Created once the main loop runs: building the button looks up the theme font through
+        // Board::GetInstance(), which must not be called while the board is still being built.
+        Application::GetInstance().Schedule([this]() {
             DisplayLockGuard lock(display_);
             menu_button_.Create([this]() {
                 if (!AnyOverlayShown()) {
                     study_menu_->Show();
                 }
             });
-        }
+        });
     }
 
 public:
