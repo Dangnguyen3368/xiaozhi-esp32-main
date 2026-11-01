@@ -313,9 +313,21 @@ private:
                 figure_view_.Show(figure, caption, kind == PhysicsTutor::ScreenKind::kProblem);
             });
         tutor.SetProgressViewer([this](const PhysicsTutor::ProgressReport& report) { progress_view_.Show(report); });
+        // Hint and solution come straight from the bank, so they work whatever the assistant
+        // is doing. Only "next problem" needs the assistant, which keeps track of the session.
         figure_view_.SetProblemActions({
-            []() { Application::GetInstance().AskAssistant("Cho em một gợi ý cho bài này"); },
-            []() { Application::GetInstance().AskAssistant("Em chịu, giảng lời giải bài này cho em"); },
+            [this]() {
+                std::string title, text;
+                if (PhysicsTutor::GetInstance().NextHintOnScreen(title, text)) {
+                    figure_view_.ShowNote(title, text);
+                }
+            },
+            [this]() {
+                std::string title, text;
+                if (PhysicsTutor::GetInstance().SolutionOnScreen(title, text)) {
+                    figure_view_.ShowNote(title, text);
+                }
+            },
             []() { Application::GetInstance().AskAssistant("Cho em bài khác"); },
         });
         tutor.RegisterTools();

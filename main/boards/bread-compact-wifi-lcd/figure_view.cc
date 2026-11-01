@@ -40,6 +40,10 @@ void FigureView::Show(const PhysicsFigure* figure, const std::string& caption, b
         Hide();
         return;
     }
+    if (is_problem) {
+        last_figure_ = figure;
+        last_caption_ = caption;
+    }
 
     // LVGL I1 image: two ARGB8888 palette entries (0 = paper, 1 = ink), then the same
     // MSB-first rows the bank stores.
@@ -99,7 +103,7 @@ void FigureView::Show(const PhysicsFigure* figure, const std::string& caption, b
         lv_obj_set_flex_grow(button, 1);
     };
     if (is_problem) {
-        // Each asks the assistant, which also closes this view when it shows the next problem.
+        // Hint and solution come from the bank and show here; the next problem is up to the assistant.
         add("Gợi ý", 0xFB8C00, [this]() {
             if (actions_.hint) {
                 actions_.hint();
@@ -121,4 +125,50 @@ void FigureView::Show(const PhysicsFigure* figure, const std::string& caption, b
     shown_ = true;
     lvgl_port_unlock();
     ESP_LOGI(TAG, "Showing figure %ux%u", figure->width, figure->height);
+}
+
+void FigureView::ShowNote(const std::string& title, const std::string& text) {
+    if (!lvgl_port_lock(kLockTimeoutMs)) {
+        ESP_LOGE(TAG, "Failed to lock LVGL");
+        return;
+    }
+    DeleteObjects();
+    BuildNote(title, text);
+    shown_ = true;
+    lvgl_port_unlock();
+}
+
+void FigureView::BuildNote(const std::string& title, const std::string& text) {
+    panel_ = study_ui::CreateOverlay();
+    lv_obj_set_style_pad_all(panel_, 4, 0);
+    lv_obj_set_style_pad_row(panel_, 4, 0);
+    lv_obj_remove_flag(panel_, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* heading = study_ui::AddLabel(panel_, title, lv_color_hex(0x1E88E5));
+    lv_label_set_long_mode(heading, LV_LABEL_LONG_DOT);
+
+    // Long solutions scroll; drag the text up and down.
+    lv_obj_t* scroller = lv_obj_create(panel_);
+    lv_obj_remove_style_all(scroller);
+    lv_obj_set_width(scroller, LV_PCT(100));
+    lv_obj_set_flex_grow(scroller, 1);
+    lv_obj_set_scroll_dir(scroller, LV_DIR_VER);
+    lv_obj_set_flex_flow(scroller, LV_FLEX_FLOW_COLUMN);
+    study_ui::AddLabel(scroller, text, lv_color_hex(0x202020));
+
+    lv_obj_t* row = lv_obj_create(panel_);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, LV_PCT(100), kButtonHeight);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(row, 3, 0);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    auto add = [&](const char* label, uint32_t color, std::function<void()> action) {
+        lv_obj_t* button = study_ui::AddButton(row, label, lv_color_hex(color), std::move(action), handlers_);
+        lv_obj_set_height(button, LV_PCT(100));
+        lv_obj_set_flex_grow(button, 1);
+    };
+    if (last_figure_ != nullptr) {
+        add("Xem đề", 0x43A047, [this]() { Show(last_figure_, last_caption_, true); });
+    }
+    add("Đóng", 0x757575, [this]() { Hide(); });
 }
