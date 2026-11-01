@@ -4,7 +4,8 @@ Bản này được làm từ [78/xiaozhi-esp32](https://github.com/78/xiaozhi-e
 
 ## Chức năng thêm vào
 
-- **Màn LCD cảm ứng 2,8"** (ILI9341 Non-IPS, cảm ứng XPT2046). Chạm vào màn để bắt đầu hoặc dừng nói chuyện. **Giữ tay khoảng 1 giây** để mở menu học tập: Luyện thi, Ôn bài sai, Hẹn giờ học, Công thức, Tiến độ, Mở/Tắt nhạc, Cập nhật.
+- **Màn LCD cảm ứng 2,8"** (ILI9341 Non-IPS, cảm ứng XPT2046). Chạm vào màn để bắt đầu hoặc dừng nói chuyện. Bấm nút **Menu** ở góc dưới bên phải (hoặc giữ tay khoảng 1 giây) để mở menu: Luyện thi, Ôn bài sai, Hẹn giờ học, Công thức, Tiến độ, Mở/Tắt nhạc, Wi-Fi, Cập nhật.
+- **Chọn Wi-Fi ngay trên màn**: Menu → Wi-Fi, robot quét mạng, chọn tên mạng, gõ mật khẩu bằng bàn phím trên màn, robot lưu lại và khởi động lại. Không cần điện thoại.
 - Dưới mỗi bài hiện trên màn có nút **Gợi ý**, **Lời giải**, **Bài khác** và **Đóng**.
 - **Hẹn giờ học Pomodoro**: 25 phút học, 5 phút nghỉ (đổi được bằng lời), có đồng hồ đếm ngược trên màn và nhạc nhẹ khi học.
 - **Ôn bài sai theo lịch**: bài làm sai được hỏi lại sau 1, 2, 4 rồi 8 ngày. Có thể hẹn giờ để robot tự nhắc ôn mỗi ngày ("Nhắc em ôn bài lúc 8 giờ tối").

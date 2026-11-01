@@ -27,6 +27,7 @@ public:
         std::function<void()> progress;
         std::function<void()> toggle_radio;
         std::function<void()> update_firmware;
+        std::function<void()> wifi_setup;
         // Labels reflect what the toggles will do.
         std::function<bool()> pomodoro_running;
         std::function<bool()> radio_running;
@@ -58,6 +59,21 @@ private:
     lv_obj_t* panel_ = nullptr;
     std::vector<std::unique_ptr<std::function<void()>>> handlers_;
     std::atomic<bool> shown_{false};
+};
+
+// Always-visible "Menu" button in the bottom-right corner; a tap opens the study menu.
+class MenuButton {
+public:
+    static constexpr int kWidth = 64;
+    static constexpr int kHeight = 30;
+    static constexpr int kMargin = 4;
+    // Call with the LVGL lock held, after the display exists.
+    void Create(std::function<void()> on_click);
+    // True when a touch at (x, y) lands on the button (with a little slack).
+    static bool Contains(int x, int y, int screen_width, int screen_height);
+
+private:
+    std::vector<std::unique_ptr<std::function<void()>>> handlers_;
 };
 
 // Small countdown pill for the Pomodoro timer, kept beneath any full-screen overlay.

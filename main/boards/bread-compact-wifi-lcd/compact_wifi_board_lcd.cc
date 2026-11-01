@@ -8,6 +8,7 @@
 #include "xpt2046_touch.h"
 #include "figure_view.h"
 #include "study_ui.h"
+#include "wifi_setup_view.h"
 #include "study/study_timer.h"
 #include "study/firmware_update.h"
 #include "assets/lang_config.h"
@@ -83,9 +84,12 @@ private:
     std::unique_ptr<StudyMenu> study_menu_;
     ProgressView progress_view_;
     PomodoroBadge pomodoro_badge_;
+    MenuButton menu_button_;
+    std::unique_ptr<WifiSetupView> wifi_setup_;
 
     bool AnyOverlayShown() const {
-        return figure_view_.IsShown() || progress_view_.IsShown() || (study_menu_ && study_menu_->IsShown());
+        return figure_view_.IsShown() || progress_view_.IsShown() || (study_menu_ && study_menu_->IsShown()) ||
+               (wifi_setup_ && wifi_setup_->IsShown());
     }
 
     void CreateStudyMenu() {
@@ -114,9 +118,11 @@ private:
             }
         };
         actions.update_firmware = []() { FirmwareUpdate::GetInstance().CheckAndInstall(); };
+        actions.wifi_setup = [this]() { wifi_setup_->Start(); };
         actions.pomodoro_running = []() { return StudyTimer::GetInstance().GetState().running; };
         actions.radio_running = [this]() { return internet_radio_ && internet_radio_->IsRunning(); };
         study_menu_ = std::make_unique<StudyMenu>(std::move(actions));
+        wifi_setup_ = std::make_unique<WifiSetupView>([this]() { EnterWifiConfigMode(); });
     }
 
     // Same action as the BOOT button: stop the radio if it plays, otherwise toggle chat.
@@ -195,8 +201,9 @@ private:
                                                 DISPLAY_WIDTH, DISPLAY_HEIGHT, calibration);
         // While a study screen is open its own buttons handle touches. Otherwise a tap works like
         // the BOOT button and a long press opens the study menu.
-        touch_->OnTap([this](int, int) {
-            if (AnyOverlayShown()) {
+        touch_->OnTap([this](int x, int y) {
+            // The Menu button handles its own taps.
+            if (AnyOverlayShown() || MenuButton::Contains(x, y, DISPLAY_WIDTH, DISPLAY_HEIGHT)) {
                 return;
             }
             Application::GetInstance().Schedule([this]() { ToggleChatOrStopRadio(); });
@@ -347,6 +354,14 @@ private:
         timer.RegisterTool();
         FirmwareUpdate::GetInstance().RegisterTool();
         CreateStudyMenu();
+        {
+            DisplayLockGuard lock(display_);
+            menu_button_.Create([this]() {
+                if (!AnyOverlayShown()) {
+                    study_menu_->Show();
+                }
+            });
+        }
     }
 
 public:
