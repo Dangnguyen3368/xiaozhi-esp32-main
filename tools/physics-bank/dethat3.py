@@ -1,0 +1,312 @@
+from common import *
+# Đề thi vào 10 chuyên Lý thật, phần 3: tải từ thuvienvatly.com (mục Đề tuyển sinh vào lớp 10).
+# Lam Sơn 2009, Thanh Hóa đại trà 2009, ĐH Vinh 2012/2014, Phan Bội Châu 2011/2012/2014,
+# Hà Tĩnh 2013, KHTN 2013/2016, Nam Định 2015, Bắc Ninh 2016, Yên Bái 2018, Phú Thọ 2012.
+# Câu cần hình được tả lại bằng lời; câu phụ thuộc hình quá nhiều thì bỏ. Lời giải tự giải lại và kiểm tra.
+P("D65", 1, "Lam Sơn 2009 – Bớt vòng dây máy hạ thế",
+  "Đề thi vào 10 chuyên Lam Sơn năm 2009. Một máy biến thế đang làm việc ở chế độ hạ thế, hiệu điện thế nguồn U1 không đổi. Cuộn sơ cấp có N1 vòng, cuộn thứ cấp có N2 vòng. Người ta bớt cùng một số vòng n ở cả hai cuộn, n nhỏ hơn N1 và N2. Hỏi hiệu điện thế ở cuộn thứ cấp tăng hay giảm so với lúc đầu?",
+  "giảm",
+  ["Lúc đầu U2 = U1·N2/N1. Sau khi bớt: U2' = U1·(N2 − n)/(N1 − n).", "Máy hạ thế nên N2 nhỏ hơn N1. So sánh (N2 − n)/(N1 − n) với N2/N1."],
+  "U2'/U2 = (N2 − n)N1 / [(N1 − n)N2]. Hiệu (N2 − n)N1 − (N1 − n)N2 = n(N2 − N1), âm vì N2 nhỏ hơn N1. Vậy U2' nhỏ hơn U2: hiệu điện thế thứ cấp giảm. Ví dụ N1 = 100, N2 = 50, n = 10: tỉ số từ 0,5 còn 40/90 ≈ 0,44.",
+  "(50-10)/(100-10) < 50/100")
+P("D66", 2, "Lam Sơn 2009 – Nam châm dao động trên ống dây",
+  "Đề thi vào 10 chuyên Lam Sơn năm 2009. Một nam châm thẳng buộc vào sợi dây bền, đầu dây O cố định, nam châm dao động tự do không ma sát trong mặt phẳng thẳng đứng như con lắc, qua lại giữa hai vị trí cao A và B, điểm thấp nhất là C. Ngay phía dưới C đặt một ống dây kín L. Khi nam châm đi từ A đến B rồi ngược lại, dòng điện cảm ứng trong ống dây thay đổi chiều như thế nào?",
+  "Dòng cảm ứng đổi chiều mỗi lần nam châm đi qua C: từ A đến C số đường sức qua ống tăng, dòng có một chiều; từ C đến B số đường sức giảm, dòng đổi sang chiều ngược lại; khi quay về thì lặp lại tương tự.",
+  ["Dòng cảm ứng chỉ xuất hiện khi số đường sức từ xuyên qua ống dây thay đổi.", "Khi nam châm đến gần C, số đường sức qua ống tăng; khi rời xa C thì giảm. Tăng và giảm cho dòng ngược chiều nhau."],
+  "Nam châm chuyển động làm số đường sức qua ống dây thay đổi nên có dòng cảm ứng. Từ A đến C: số đường sức tăng, dòng cảm ứng có chiều chống lại sự tăng. Qua C, số đường sức đang tăng chuyển sang giảm, nên dòng đổi chiều. Từ C đến B: số đường sức giảm, dòng có chiều ngược lại. Đi từ B về A cũng vậy: mỗi lần qua C dòng lại đổi chiều.",
+  None)
+P("D67", 2, "Lam Sơn 2009 – Ảnh cao gấp ba qua thấu kính hội tụ",
+  "Đề thi vào 10 chuyên Lam Sơn năm 2009. Thấu kính hội tụ tiêu cự f = 12 cm. Vật phẳng nhỏ AB vuông góc với trục chính, A nằm trên trục chính, cách quang tâm một khoảng a. Ảnh của AB cao gấp ba lần AB. Tính a.",
+  "có hai đáp án: a = 16 cm (ảnh thật, ngược chiều) hoặc a = 8 cm (ảnh ảo, cùng chiều)",
+  ["Ảnh cao gấp ba có thể là ảnh thật hoặc ảnh ảo, nên xét cả hai trường hợp.", "Tia tới qua tiêu điểm F ló ra song song trục chính. Tam giác đồng dạng cho: khoảng cách từ vật đến F bằng f/3."],
+  "Tia qua F ló song song trục chính, cắt thấu kính ở độ cao bằng ảnh, gấp 3 lần vật. Tam giác đồng dạng: FA/OF = 1/3, nên FA = 4 cm. Ảnh thật: vật ngoài F, a = 12 + 4 = 16 cm (ảnh cách thấu kính 48 cm). Ảnh ảo: vật trong F, a = 12 − 4 = 8 cm (ảnh ảo cách 24 cm).",
+  "abs(16*12/(16-12)/16-3)<1e-9 and abs(8*12/(12-8)/8-3)<1e-9")
+P("D68", 3, "Lam Sơn 2009 – Mạch có khóa và ampe kế",
+  "Đề thi vào 10 chuyên Lam Sơn năm 2009. Mạch điện: R1 = 45 Ω nối A với C; từ C, ampe kế nối tiếp R3 = 15 Ω đi tới D; R2 = 90 Ω nối A với D; R4 thay đổi được nối D với B; khóa k nối C với B. Hiệu điện thế UAB không đổi, bỏ qua điện trở ampe kế và khóa. a) Khóa k mở, R4 = 24 Ω thì ampe kế chỉ 0,9 A. Tính UAB. b) Điều chỉnh R4 sao cho đóng hay mở k thì số chỉ ampe kế vẫn như nhau. Tìm R4. c) Với R4 đó, tính số chỉ ampe kế và dòng qua khóa k khi k đóng.",
+  "a) UAB = 90 V; b) R4 = 45 Ω; c) ampe kế chỉ 2/3 A ≈ 0,67 A, dòng qua k ≈ 2,67 A",
+  ["k mở: nhánh R1 nối tiếp R3 (60 Ω) song song R2 (90 Ω), rồi nối tiếp R4. k đóng: C nối thẳng với B, nên R1 mắc thẳng vào A, B; còn R2 nối tiếp với cụm R3 song song R4.", "Viết số chỉ ampe kế theo R4 cho hai trường hợp rồi cho bằng nhau, ra phương trình R4² − 27R4 − 810 = 0."],
+  "a) UAD = 0,9·60 = 54 V, I2 = 54/90 = 0,6 A, dòng chính 1,5 A, RAB = 36 + 24 = 60 Ω, UAB = 90 V. b) k mở: IA = UAB·36/[60(R4 + 36)]. k đóng: IA = UAB·R4/(1350 + 105R4). Cho bằng nhau: R4² − 27R4 − 810 = 0, nên R4 = 45 Ω. c) IA = 90·45/(1350 + 4725) = 2/3 A. Dòng qua R1 là 90/45 = 2 A. Tại C, dòng qua k bằng 2 + 0,67 ≈ 2,67 A.",
+  "abs(0.9*60/90+0.9-1.5)<1e-9 and 45**2-27*45-810==0 and abs(90*36/(60*(45+36))-90*45/(1350+105*45))<1e-9 and abs(90*45/(1350+105*45)-2/3)<1e-9")
+P("D69", 1, "Thanh Hóa 2009 – Vật đặt tại tiêu điểm thấu kính phân kỳ",
+  "Đề thi vào 10 Thanh Hóa năm 2009 (đề đại trà). Vật sáng AB cao h = 3 cm, vuông góc với trục chính của thấu kính phân kỳ tiêu cự f = 14 cm, điểm A nằm đúng tại tiêu điểm F. Nêu tính chất ảnh, tính chiều cao ảnh và khoảng cách từ ảnh đến thấu kính.",
+  "ảnh ảo, cùng chiều, nhỏ hơn vật; cao 1,5 cm; cách thấu kính 7 cm",
+  ["Vẽ tia từ B song song trục chính (tia ló kéo dài qua F) và tia qua quang tâm O.", "Hai đường đó cắt nhau tại trung điểm của BO, vì ABIO là hình chữ nhật."],
+  "Tia từ B song song trục chính cho tia ló có đường kéo dài đi qua F, tức qua A. Tia qua O truyền thẳng. Hai đường cắt nhau tại B' là giao điểm hai đường chéo của hình chữ nhật ABIO, tức trung điểm BO. Vậy A'B' là đường trung bình: A'B' = h/2 = 1,5 cm, OA' = f/2 = 7 cm. Ảnh ảo, cùng chiều, nhỏ hơn vật.",
+  "abs(1/(-1/14-1/14)+7)<1e-9")
+P("D70", 1, "Thanh Hóa 2009 – Đèn 110 V – 55 W chạy dòng 0,4 A",
+  "Đề thi vào 10 Thanh Hóa năm 2009 (đề đại trà). Một bóng đèn ghi 110 V – 55 W. a) Nêu ý nghĩa các số ghi. b) Cho dòng điện 0,4 A chạy qua đèn thì đèn sáng thế nào, và đạt bao nhiêu phần trăm công suất định mức? Coi điện trở đèn không đổi.",
+  "a) hiệu điện thế định mức 110 V, công suất định mức 55 W; b) đèn sáng yếu hơn bình thường, công suất 35,2 W, bằng 64% định mức",
+  ["Dòng định mức I = P/U. Điện trở R = U²/P.", "Công suất mới P' = I²R."],
+  "a) Đèn sáng bình thường khi đặt vào 110 V, khi đó tiêu thụ 55 W. b) Dòng định mức 55/110 = 0,5 A, lớn hơn 0,4 A, nên đèn sáng yếu hơn. R = 110²/55 = 220 Ω. P' = 0,4²·220 = 35,2 W, bằng 35,2/55 = 64% định mức.",
+  "abs(0.4**2*110**2/55-35.2)<1e-9 and abs(35.2/55-0.64)<1e-9")
+P("D71", 1, "Thanh Hóa 2009 – Mắc thêm đèn vào mạch hai điện trở",
+  "Đề thi vào 10 Thanh Hóa năm 2009 (đề đại trà). R1 = 5 Ω nối A với C, R2 = 20 Ω nối C với B, ampe kế nối tiếp ở mạch chính, UAB không đổi. a) Ampe kế chỉ 2 A. Tính UAB. b) Mắc thêm một bóng đèn điện trở 12 Ω vào hai điểm C và B. Tính điện trở tương đương. Biết đèn sáng bình thường, tính công suất định mức của đèn. c) Giữ nguyên đèn, đổi chỗ R1 và R2 cho nhau thì đèn sáng hơn hay tối đi?",
+  "a) 50 V; b) RAB = 12,5 Ω, công suất định mức đèn 75 W; c) đèn tối đi rất nhiều",
+  ["Câu b: R1 nối tiếp với cụm R2 song song đèn.", "Câu c: sau khi đổi, đèn song song với điện trở nhỏ 5 Ω, còn 20 Ω nằm ở mạch chính, nên phần hiệu điện thế trên đèn giảm."],
+  "a) UAB = 2·(5 + 20) = 50 V. b) R2 song song đèn: 20·12/32 = 7,5 Ω, RAB = 12,5 Ω, I = 4 A, UAC = 20 V, UCB = 30 V. Đèn sáng bình thường nên P = 30²/12 = 75 W. c) Sau khi đổi: cụm 5 Ω song song 12 Ω bằng khoảng 3,53 Ω, nối tiếp 20 Ω. Hiệu điện thế trên đèn chỉ còn khoảng 7,5 V, nên đèn tối đi.",
+  "abs(50/(5+20*12/32)-4)<1e-9 and abs((50-4*5)**2/12-75)<1e-9 and abs(50*(60/17)/(20+60/17)-7.5)<1e-9")
+P("D72", 2, "ĐH Vinh 2012 – Hai ô tô qua cùng điểm A",
+  "Đề thi vào 10 chuyên ĐH Vinh năm 2012. Hai ô tô chuyển động đều, cùng chiều trên một đường thẳng, lần lượt đi qua điểm A, xe một đi qua trước. Khi xe hai tới A thì xe một đã cách A 30 km. Sau đó, khi xe hai cách A 30 km thì xe một cách A 50 km. Thời gian hai xe chạy hết cùng 1 km thì hơn kém nhau 30 giây. a) Tìm vận tốc mỗi xe. b) Kể từ khi đi qua A, sau bao lâu xe hai đuổi kịp xe một?",
+  "a) xe một 40 km/h, xe hai 60 km/h; b) 1,5 giờ sau khi xe hai qua A",
+  ["Trong cùng một khoảng thời gian, xe hai đi 30 km thì xe một đi 50 − 30 = 20 km, nên v2/v1 = 3/2.", "30 giây là 1/120 giờ: 1/v1 − 1/v2 = 1/120."],
+  "a) v2 = 1,5v1. 1/v1 − 1/(1,5v1) = 1/(3v1) = 1/120, nên v1 = 40 km/h, v2 = 60 km/h. b) Khi xe hai qua A, xe một đi trước 30 km, hai xe xích lại 20 km mỗi giờ, nên sau 30/20 = 1,5 giờ thì đuổi kịp.",
+  "abs(1/40-1/60-1/120)<1e-12 and 30/(60-40)==1.5")
+P("D73", 2, "ĐH Vinh 2012 – Rót nước qua lại hai bình",
+  "Đề thi vào 10 chuyên ĐH Vinh năm 2012. Bình A chứa 5 lít nước ở 60 độ C, bình B chứa 1 lít nước ở 20 độ C. Rót một lượng nước từ A sang B, cân bằng nhiệt xong lại rót từ B về A để thể tích hai bình như lúc đầu. Khi đó nước trong bình A có nhiệt độ 59 độ C. Bỏ qua mọi hao phí, khối lượng riêng nước 1000 kg/m³. a) Tìm khối lượng nước đã rót từ A sang B. b) Sau đó cần đổ bớt bao nhiêu kg nước ở bình A ra ngoài để khi trộn phần còn lại với nước bình B thì nhiệt độ cân bằng là 49 độ C?",
+  "a) m = 1/7 kg ≈ 0,143 kg; b) đổ bớt 2,6 kg",
+  ["Gọi m là lượng rót. Nhiệt độ bình B sau lần rót đầu: tB = (60m + 20)/(m + 1).", "Rót m kg ở tB về A: (5 − m)·60 + m·tB = 5·59, tức m(60 − tB) = 5."],
+  "a) 60 − tB = 40/(m + 1). Thay vào m(60 − tB) = 5: 40m = 5m + 5, m = 1/7 kg ≈ 0,143 kg, và tB = 25 độ C. b) Bình A 5 kg ở 59 độ C, bình B 1 kg ở 25 độ C. Đổ bớt x kg: (5 − x)(59 − 49) = 1·(49 − 25), nên 5 − x = 2,4, x = 2,6 kg.",
+  "abs((60/7+20)/(8/7)-25)<1e-9 and abs((5-1/7)*60+(1/7)*25-295)<1e-9 and abs(5-24/10-2.6)<1e-9")
+P("D74", 3, "ĐH Vinh 2012 – Tia sáng giữa hai gương song song",
+  "Đề thi vào 10 chuyên ĐH Vinh năm 2012. Hai gương phẳng G1, G2 song song, quay mặt phản xạ vào nhau, cách nhau a. Điểm sáng S nằm giữa hai gương, cách G1 một khoảng b. Điểm H cũng nằm giữa hai gương, SH song song với hai gương và SH = c. Tia sáng từ S tới G1 tại I, phản xạ tới G2 tại J rồi phản xạ đi qua H. Tính khoảng cách từ I và từ J đến đường thẳng qua S vuông góc với hai gương, theo a, b, c.",
+  "I cách bc/(2a), J cách (a + b)c/(2a)",
+  ["Dựng ảnh S1 của S qua G1, rồi ảnh S2 của S1 qua G2. Tia phản xạ cuối cùng như phát ra từ S2.", "S1 cách S một khoảng 2b; S2 nằm sau G2, cách G2 một khoảng a + b, cùng nằm trên đường qua S vuông góc gương. Nối S2 với H, dùng tam giác đồng dạng."],
+  "Đặt G1 tại x = 0, G2 tại x = a, S tại (b; 0), H tại (b; c). Ảnh S1 = (−b; 0), S2 = (2a + b; 0). Đường S2H cắt G2 tại J có độ cao c(a + b)/(2a). Đường S1J cắt G1 tại I có độ cao (a + b)c/(2a) nhân b/(a + b), tức bc/(2a).",
+  "abs(3*(10-4)/(10-2)-3*(4+2)/(2*4))<1e-9 and abs(3*(4+2)/(2*4)*2/6-2*3/(2*4))<1e-9")
+P("D75", 2, "Phan Bội Châu 2011 – Hải âu bay giữa hai tàu",
+  "Đề thi vào 10 chuyên Phan Bội Châu, Nghệ An năm 2011. Hai tàu chạy trên cùng đường thẳng, cùng vận tốc v, hướng vào nhau. Khi hai tàu cách nhau L, một con hải âu từ tàu A bay với vận tốc u lớn hơn v tới tàu B (lần gặp 1), rồi lập tức bay về tàu A (lần gặp 2), cứ thế tiếp tục. a) Tính tổng quãng đường hải âu bay được khi hai tàu còn cách nhau l nhỏ hơn L. b) Lập biểu thức tổng quãng đường hải âu bay được đến lần gặp tàu thứ n.",
+  "a) S = u(L − l)/(2v); b) Sn = (uL/2v)·[1 − ((u − v)/(u + v))^n]",
+  ["Hai tàu xích lại với vận tốc 2v, nên thời gian để khoảng cách giảm từ L xuống l là (L − l)/(2v).", "Mỗi lần gặp, khoảng cách hai tàu nhân với k = (u − v)/(u + v). Sau n lần gặp còn k^n·L."],
+  "a) Thời gian t = (L − l)/(2v), hải âu bay liên tục nên S = u(L − l)/(2v). b) Lần bay đầu kéo dài L/(u + v), trong thời gian đó hai tàu xích lại 2vL/(u + v), khoảng cách còn L(u − v)/(u + v) = kL. Sau n lần gặp khoảng cách còn k^n·L. Áp dụng câu a với l = k^n·L: Sn = (uL/2v)(1 − k^n).",
+  "abs(sum(5*10/(5+1)*((5-1)/(5+1))**i for i in range(3))-5*10/2*(1-((5-1)/(5+1))**3))<1e-9")
+P("D76", 3, "Phan Bội Châu 2011 – Thanh đồng và thanh thép dẫn nhiệt",
+  "Đề thi vào 10 chuyên Phan Bội Châu năm 2011. Bình cách nhiệt chứa nước và nước đá ở 0 độ C. Một thanh đồng bọc cách nhiệt xuyên qua thành bình: một đầu chạm nước đá, đầu kia nhúng trong nước sôi 100 độ C. Sau 15 phút nước đá tan hết. Thay bằng thanh thép (cùng tiết diện, khác chiều dài) thì sau 48 phút tan hết. Nhiệt lượng truyền qua mỗi thanh trong một đơn vị thời gian tỉ lệ với hiệu nhiệt độ hai đầu thanh. Nối hai thanh nối tiếp nhau. Tìm nhiệt độ chỗ nối và thời gian để nước đá tan hết khi: a) đầu thanh đồng chạm nước sôi; b) đầu thanh thép chạm nước sôi.",
+  "a) chỗ nối khoảng 76,2 độ C, thời gian 63 phút; b) chỗ nối khoảng 23,8 độ C, thời gian vẫn 63 phút",
+  ["Viết công suất truyền nhiệt: thanh đồng k1·ΔT, thanh thép k2·ΔT. Cùng làm tan một lượng đá nên k1·15 = k2·48, tức k1 = 3,2k2.", "Nối tiếp thì nhiệt lượng qua hai thanh mỗi giây bằng nhau."],
+  "a) 3,2k2(100 − t) = k2(t − 0), t = 320/4,2 ≈ 76,2 độ C. Công suất bằng k2·76,2, nhỏ hơn lúc thép một mình (k2·100) với tỉ lệ 0,762, nên T = 48/0,762 ≈ 63 phút. b) k2(100 − t) = 3,2k2·t, t = 100/4,2 ≈ 23,8 độ C. Công suất 3,2k2·23,8 = k2·76,2, nên T vẫn bằng 63 phút. Kết quả gọn: T = 15 + 48.",
+  "abs(48*100/(320/4.2)-63)<1e-6 and abs(3.2*100/4.2-320/4.2)<1e-9")
+P("D77", 2, "Phan Bội Châu 2011 – Hai ảnh trùng nhau qua thấu kính",
+  "Đề thi vào 10 chuyên Phan Bội Châu năm 2011. Hai điểm sáng S1 và S2 nằm trên trục chính, ở hai bên một thấu kính hội tụ, cách thấu kính lần lượt 9 cm và 18 cm. Ảnh của S1 và S2 qua thấu kính trùng nhau. Tính tiêu cự thấu kính.",
+  "f = 12 cm",
+  ["Hai ảnh trùng nhau thì một ảnh phải là ảnh ảo (của S1 ở gần) và một ảnh thật (của S2 ở xa), cùng nằm phía S1.", "Ảnh ảo của S1 cách thấu kính 9f/(f − 9); ảnh thật của S2 cách 18f/(18 − f). Cho bằng nhau."],
+  "S1 ở trong tiêu cự cho ảnh ảo cùng phía với S1. S2 ở ngoài tiêu cự cho ảnh thật ở phía bên kia, tức cũng phía S1. 9f/(f − 9) = 18f/(18 − f), nên 9(18 − f) = 18(f − 9), f = 12 cm. Khi đó hai ảnh cùng cách thấu kính 36 cm.",
+  "abs(9*12/(12-9)-18*12/(18-12))<1e-9")
+P("D78", 1, "Phan Bội Châu 2012 – Ba bài toán cùng dạng trung bình",
+  "Đề thi vào 10 chuyên Phan Bội Châu năm 2012. a) Một người đi xe đạp nửa đoạn đường đầu với vận tốc v1, nửa sau với v2. Nếu đi đều với v0 trên cả đoạn thì hết cùng thời gian. Tính v0. b) Hai khối chất lỏng nhiệt dung riêng c1, c2, khi mỗi khối nhận nhiệt lượng Q/2 thì tăng nhiệt độ như nhau. Trộn chung rồi cấp nhiệt lượng Q thì hỗn hợp cũng tăng nhiệt độ như vậy. Tính nhiệt dung riêng hỗn hợp. c) R1 và R2 lần lượt được mắc vào cùng một hiệu điện thế, mỗi cái trong thời gian t/2. Điện trở R mắc vào hiệu điện thế đó trong thời gian t tỏa nhiệt bằng tổng hai lần trên. Tính R.",
+  "a) v0 = 2v1v2/(v1 + v2); b) c = 2c1c2/(c1 + c2); c) R = 2R1R2/(R1 + R2)",
+  ["Câu a: tổng thời gian S/(2v1) + S/(2v2) bằng S/v0.", "Ba câu cùng một dạng: đại lượng cần tìm là trung bình điều hòa của hai đại lượng đã cho."],
+  "a) S/v0 = S/(2v1) + S/(2v2), nên v0 = 2v1v2/(v1 + v2). b) m1 = Q/(2c1Δt), m2 = Q/(2c2Δt). Hỗn hợp: Q = c(m1 + m2)Δt, nên c = 2c1c2/(c1 + c2). c) U²t/R = U²t/(2R1) + U²t/(2R2), nên R = 2R1R2/(R1 + R2).",
+  "abs(1/(0.5/10+0.5/15)-2*10*15/25)<1e-9")
+P("D79", 3, "Phan Bội Châu 2012 – Mèo Tom đuổi chuột Jerry",
+  "Đề thi vào 10 chuyên Phan Bội Châu năm 2012. Mèo Tom và chuột Jerry cùng lúc chạy trên một đường thẳng, ban đầu cách nhau 36 m, Jerry chạy ra xa Tom. Vận tốc ban đầu của Tom là 14 m/s, cứ sau mỗi 10 giây vận tốc của Tom giảm đi 1 m/s. Jerry phải chạy đều với vận tốc bao nhiêu để Tom không bắt được?",
+  "lớn hơn 11,8 m/s",
+  ["Thử Jerry chạy 11 m/s: 10 giây đầu khoảng cách giảm 30 m, 10 giây sau giảm 20 m, bị bắt. Chạy 12 m/s thì không bị bắt. Vậy đáp số nằm giữa 11 và 12.", "Đặt vận tốc Jerry là 12 − u. Ba khoảng 10 giây đầu, khoảng cách giảm 10(2 + u) + 10(1 + u) + 10u; sau đó Tom chậm hơn Jerry."],
+  "Với Jerry chạy 12 − u (u từ 0 đến 1), sau 30 giây khoảng cách giảm 30 + 30u, sau đó Tom chậm dần nên không đuổi kịp nữa. Điều kiện 36 lớn hơn 30 + 30u cho u nhỏ hơn 0,2. Vậy Jerry phải chạy nhanh hơn 11,8 m/s. Kiểm tra: quãng Tom chạy trong 30 giây là 140 + 130 + 120 = 390 m, bằng 36 + 11,8·30.",
+  "abs(140+130+120-(36+11.8*30))<1e-9")
+P("D80", 2, "Phan Bội Châu 2012 – Vật nổi trong hỗn hợp hai chất lỏng",
+  "Đề thi vào 10 chuyên Phan Bội Châu năm 2012. Một vật rắn không thấm nước, thả vào chất lỏng A thì 60% thể tích bị ngập, thả vào chất lỏng B thì 45% thể tích bị ngập. Trộn đều A và B theo tỉ lệ thể tích A : B = 2 : 1 rồi thả vật vào. Bao nhiêu phần trăm thể tích vật bị ngập?",
+  "54%",
+  ["Vật nổi: P = 0,6·V·dA = 0,45·V·dB, nên dA = P/(0,6V), dB = P/(0,45V).", "Trọng lượng riêng hỗn hợp: (2dA + dB)/3."],
+  "dhh = (2dA + dB)/3 = (P/V)(2/0,6 + 1/0,45)/3 = (P/V)·1,852. Phần ngập k = P/(V·dhh) = 1/1,852 = 0,54, tức 54%.",
+  "abs(1/((2/0.6+1/0.45)/3)-0.54)<1e-9")
+P("D81", 2, "Phan Bội Châu 2012 – Đổ cốc nước nóng vào xô",
+  "Đề thi vào 10 chuyên Phan Bội Châu năm 2012. Đổ những cốc đầy nước nóng như nhau vào một cái xô đang có nước lạnh. Đổ cốc thứ nhất thì nhiệt độ trong xô tăng thêm 5 độ C, đổ thêm cốc thứ hai thì tăng thêm 3 độ C nữa. Hỏi đổ thêm cốc thứ ba thì nhiệt độ trong xô tăng thêm bao nhiêu? Bỏ qua mất mát nhiệt.",
+  "tăng thêm 2 độ C",
+  ["Gọi nhiệt dung xô ban đầu là q0, của một cốc là q, hiệu nhiệt độ nước nóng và nước lạnh lúc đầu là x.", "Cốc 1: q(x − 5) = 5q0. Cốc 2: q(x − 8) = 3(q0 + q)."],
+  "Từ hai phương trình: q0 = 3q và x = 20 độ C. Cốc 3: q(x − 8 − Δ) = (q0 + 2q)Δ, tức 12 − Δ = 5Δ, Δ = 2 độ C.",
+  "(20-5)==5*3 and (20-8)==3*(3+1) and 12-2==5*2")
+P("D82", 2, "Phan Bội Châu 2012 – Mắc biến trở chịu dòng nhỏ",
+  "Đề thi vào 10 chuyên Phan Bội Châu năm 2012. Một dụng cụ cần dòng điện 1 A, khi đó hiệu điện thế trên nó là 50 V. Nguồn có hiệu điện thế ổn định 190 V. Có một biến trở ghi 620 Ω – 350 W. a) Mắc mạch thế nào để dụng cụ hoạt động bình thường? b) Xác định vị trí con chạy. c) Tính hiệu suất mạch.",
+  "a) nối chung hai đầu biến trở, dùng con chạy làm đầu kia, để hai phần biến trở mắc song song, rồi mắc nối tiếp với dụng cụ; b) con chạy chia biến trở thành hai phần khoảng 406,4 Ω và 213,6 Ω; c) hiệu suất khoảng 26,3%, rất thấp",
+  ["Biến trở chỉ chịu được dòng tối đa căn bậc hai của 350/620, khoảng 0,75 A, nhỏ hơn 1 A, nên không thể mắc nối tiếp cả dòng qua một phần biến trở.", "Hai phần x và 620 − x mắc song song phải có điện trở tương đương 140 Ω."],
+  "a) Dòng tối đa của biến trở ≈ 0,75 A. Nối hai đầu biến trở với nhau, con chạy là đầu thứ hai, hai phần biến trở song song, chia nhau dòng 1 A. b) Cần 190 − 50 = 140 V trên biến trở với dòng 1 A, tức 140 Ω: x(620 − x)/620 = 140, x² − 620x + 86 800 = 0, x ≈ 406,4 Ω hoặc 213,6 Ω. Dòng qua hai phần khoảng 0,34 A và 0,66 A, đều dưới 0,75 A. c) H = 50/190 ≈ 26,3%.",
+  "abs(406.43*(620-406.43)/620-140)<0.01 and 140/213.57<sqrt(350/620)")
+P("D83", 2, "Phan Bội Châu 2014 – Đi bộ rồi đạp xe",
+  "Đề thi vào 10 chuyên Phan Bội Châu năm 2014. Quang và Minh cùng xuất phát từ A đi đến B. Quang đi bộ nửa quãng đường đầu với 5 km/h, nửa sau đạp xe với vận tốc v2, tốc độ trung bình cả quãng là 8 km/h. Minh đi bộ nửa thời gian đầu với 5 km/h, nửa thời gian sau đạp xe với v2. 1) Tính tốc độ trung bình của Minh. 2) Khi một bạn tới B thì bạn kia còn cách B 7,5 km. Tính AB. 3) Khi hai bạn cách nhau 3 km thì Minh đã đi được bao nhiêu?",
+  "1) 12,5 km/h (v2 = 20 km/h); 2) AB = 12,5 km; 3) Minh đã đi 6,5 km (lần sau là lúc Minh đã tới B, 12,5 km)",
+  ["Quang: 2·5·v2/(5 + v2) = 8 nên v2 = 20 km/h. Minh: trung bình (5 + 20)/2.", "Minh tới B sau AB/12,5 giờ, lúc đó Quang vẫn đang đi bộ."],
+  "1) v2 = 20, vtbMinh = 12,5 km/h. 2) Minh tới trước. Khi đó Quang vẫn đi bộ: 12,5t − 5t = 7,5, t = 1 giờ, AB = 12,5 km. 3) Nửa giờ đầu cả hai đi bộ cùng vị trí. Sau đó Minh đạp xe: 2,5 + 20(t − 0,5) − 5t = 3 khi t = 0,7 giờ, Minh đã đi 6,5 km. Lần thứ hai họ cách 3 km là khi Minh đã ở B và Quang đạp xe tới cách B 3 km.",
+  "abs(2*5*20/25-8)<1e-9 and abs(12.5*1-5*1-7.5)<1e-9 and abs(2.5+20*0.2-5*0.7-3)<1e-9")
+P("D84", 3, "Phan Bội Châu 2014 – Đổ nước qua lại hai bình",
+  "Đề thi vào 10 chuyên Phan Bội Châu năm 2014. Bình 1 chứa 2 kg nước ở 20 độ C, bình 2 chứa 4 kg nước ở 60 độ C. Đổ m kg từ bình 1 sang bình 2, cân bằng ở nhiệt độ t3. Sau đó lấy 2m kg từ bình 2 đổ sang bình 1; cân bằng xong thì nhiệt độ hai bình chênh nhau 20 độ C. Tính m và t3.",
+  "m ≈ 0,55 kg, t3 ≈ 55,2 độ C",
+  ["Lần đổ thứ nhất: m(t3 − 20) = 4(60 − t3).", "Lần đổ thứ hai, bình 1 có 2 − m kg ở 20 độ C nhận 2m kg ở t3; bình 2 vẫn ở t3. Nhiệt độ bình 1 mới là t3 − 20."],
+  "Lần hai: 2m[t3 − (t3 − 20)] = (2 − m)(t3 − 20 − 20), tức 40m = (2 − m)(t3 − 40). Kết hợp với m = 4(60 − t3)/(t3 − 20) ra 3t3² − 180t3 + 800 = 0. Nghiệm hợp lí t3 ≈ 55,16 độ C, suy ra m ≈ 0,55 kg.",
+  "abs(3*55.16**2-180*55.16+800)<5 and abs(4*(60-55.16)/(55.16-20)-0.55)<0.01")
+P("D85", 3, "Phan Bội Châu 2014 – Giác bám giữ khối bần dưới nước",
+  "Đề thi vào 10 chuyên Phan Bội Châu năm 2014. Đáy bể nước nằm sâu h dưới mặt nước. Một giác bám cao su dính ở đáy bể, nối bằng dây với một khối gỗ bần trọng lượng P để giữ nó chìm hoàn toàn. Khối lượng riêng nước D0, của bần D, áp suất khí quyển p0. Tìm diện tích nhỏ nhất của giác bám.",
+  "Smin = P(D0 − D) / [D(p0 + 10D0h)]",
+  ["Lực dây phải kéo: F = FA − P = P(D0/D − 1).", "Giác bám bị ép xuống đáy bởi áp suất khí quyển cộng áp suất nước ở độ sâu h, tức (p0 + 10D0h)·S."],
+  "Khối bần thể tích V = P/(10D), lực đẩy FA = 10D0V = P·D0/D. Lực căng dây F = P(D0 − D)/D. Giác bám giữ được khi (p0 + 10D0h)·S ≥ F, nên S nhỏ nhất bằng P(D0 − D)/[D(p0 + 10D0h)].",
+  None)
+P("D86", 3, "Phan Bội Châu 2014 – Khối trụ nhìn qua kính lúp",
+  "Đề thi vào 10 chuyên Phan Bội Châu năm 2014. Một khối trụ đặt trong khoảng tiêu cự của thấu kính hội tụ, trục khối trụ trùng trục chính. Đặt mắt sau thấu kính thì thấy mặt trước khối trụ (gần thấu kính) có bán kính gấp 2 lần thật, mặt sau có bán kính gấp 2,5 lần thật. Tính tỉ số bề dày ảnh của khối trụ với bề dày thật của nó.",
+  "5 lần",
+  ["Ảnh ảo qua thấu kính hội tụ có độ phóng đại k = f/(f − d). Từ k = 2 và k = 2,5 tìm khoảng cách hai mặt.", "Ảnh ảo cách thấu kính d' = k·d."],
+  "Mặt trước: f/(f − d1) = 2, d1 = f/2, ảnh cách f. Mặt sau: f/(f − d2) = 2,5, d2 = 0,6f, ảnh cách 1,5f. Bề dày thật 0,1f, bề dày ảnh 0,5f. Tỉ số bằng 5.",
+  "abs((2.5*0.6-2*0.5)/(0.6-0.5)-5)<1e-9")
+P("D87", 2, "ĐH Vinh 2014 – Ba ô tô qua cột mốc A",
+  "Đề thi vào 10 chuyên ĐH Vinh năm 2014. Hai ô tô chạy đều cùng chiều. Người đứng ở A thấy: 8 giờ xe một qua A; 8 giờ 15 xe hai qua A, lúc đó xe một cách A 8 km. Xe hai đuổi kịp xe một ở chỗ cách A 24 km. a) Tính vận tốc mỗi xe và thời điểm đuổi kịp. b) 8 giờ 45 có xe ba qua A đuổi theo. Sau khi đuổi kịp xe một, xe ba đi thêm 30 phút nữa thì cách đều xe một và xe hai. Tìm vận tốc xe ba.",
+  "a) xe một 32 km/h, xe hai 48 km/h, gặp lúc 8 giờ 45; b) xe ba 56 km/h",
+  ["Xe một đi 8 km trong 15 phút. Từ 8 giờ 15, xe một đi thêm 16 km thì bị đuổi kịp.", "Lúc 8 giờ 45, xe một và xe hai cùng ở cách A 24 km. Cách đều nghĩa là xe ba ở trung điểm hai xe."],
+  "a) v1 = 8/0,25 = 32 km/h. Xe một đi 16 km mất 0,5 giờ, gặp lúc 8 giờ 45, xe hai đi 24 km trong 0,5 giờ nên v2 = 48 km/h. b) Tính từ 8 giờ 45: xe ba đuổi kịp xe một sau t1 = 24/(v3 − 32). Sau thêm 0,5 giờ: v3·T = 24 + 40T, T = 24/(v3 − 40) = t1 + 0,5. Ra v3² − 72v3 + 896 = 0, v3 = 56 km/h (loại 16).",
+  "56**2-72*56+896==0 and abs(24/(56-40)-24/(56-32)-0.5)<1e-9")
+P("D88", 2, "ĐH Vinh 2014 – Vệt sáng qua lỗ có thấu kính",
+  "Đề thi vào 10 chuyên ĐH Vinh năm 2014. Tấm bìa có lỗ tròn đường kính 6 cm, một thấu kính hội tụ tiêu cự 20 cm lắp khít lỗ. Sau tấm bìa, song song và cách nó 40 cm là màn ảnh. Điểm sáng S trên trục chính, trước thấu kính 30 cm. a) Tìm vị trí ảnh S' và đường kính vệt sáng trên màn. b) Giữ thấu kính và màn, phải dịch S theo chiều nào, bao nhiêu để vệt sáng có kích thước như cũ?",
+  "a) S' cách thấu kính 60 cm, vệt sáng đường kính 2 cm; b) dịch S ra xa thấu kính thêm 30 cm (S cách 60 cm, ảnh cách 30 cm)",
+  ["d' = df/(d − f). Chùm sáng hội tụ tại S' phía sau màn, nên trên màn là vệt tròn.", "Vệt sáng như cũ khi ảnh nằm trước màn và chùm loe ra: 6(40 − d')/d' = 2."],
+  "a) d' = 30·20/10 = 60 cm. Màn ở 40 cm, vệt sáng đường kính 6·(60 − 40)/60 = 2 cm. b) Trường hợp ảnh trước màn: 6(40 − d')/d' = 2 nên d' = 30 cm, khi đó d = 30·20/10 = 60 cm. Dịch S ra xa thêm 30 cm.",
+  "abs(30*20/10-60)<1e-9 and abs(6*(60-40)/60-2)<1e-9 and abs(6*(40-30)/30-2)<1e-9 and abs(60*20/40-30)<1e-9")
+P("D89", 3, "Hà Tĩnh 2013 – Mạch dây uốn nửa đường tròn",
+  "Đề thi vào 10 chuyên Hà Tĩnh năm 2013. Các dây cắt từ cùng một dây đồng chất, mỗi cm có điện trở 1 Ω. Đoạn mạch AB gồm: cung AmB là nửa đường tròn đường kính AB = 20 cm; đoạn thẳng AO dài 10 cm với O là trung điểm AB; từ O đến B có hai dây song song: đoạn thẳng OB dài 10 cm và cung OnB là nửa đường tròn đường kính OB. a) Tính điện trở tương đương. b) Gọi I1, I2, I3 là dòng qua cung AmB, cung OnB và đoạn OB. Tính I2/I3 và I1/I3. c) C là điểm trên cung AmB. Nối O với C bằng ampe kế. Tìm chiều dài cung AC để ampe kế chỉ 0.",
+  "a) khoảng 10,65 Ω; b) I2/I3 ≈ 0,64, I1/I3 ≈ 0,84; c) cung AC ≈ 19,5 cm",
+  ["Cung AmB dài 10π ≈ 31,4 Ω; cung OnB dài 5π ≈ 15,7 Ω.", "Ampe kế chỉ 0 khi O và C cùng điện thế: UAC/UAB = UAO/UAB."],
+  "a) OB song song OnB: 10·15,7/25,7 ≈ 6,11 Ω. Nhánh AOB: 16,11 Ω. Song song cung AmB 31,42 Ω: RAB ≈ 10,65 Ω. b) I2/I3 = 10/15,7 ≈ 0,64. I1/(I2 + I3) = 16,11/31,42 ≈ 0,513, nên I1/I3 = 0,513·1,64 ≈ 0,84. c) UAO/UAB = 10/16,11 = 0,621. Cung AC có điện trở 0,621·31,42 ≈ 19,5 Ω, tức dài 19,5 cm.",
+  "abs((10*pi)*(10+50*pi/(10+5*pi))/(10*pi+10+50*pi/(10+5*pi))-10.65)<0.01 and abs(10/(10+50*pi/(10+5*pi))*10*pi-19.5)<0.01")
+P("D90", 2, "Hà Tĩnh 2013 – Mắc đèn sau điện trở r",
+  "Đề thi vào 10 chuyên Hà Tĩnh năm 2013. Hiệu điện thế 24 V đặt vào A, B; điện trở r = 6 Ω nối tiếp với đoạn MN. a) Mắc vào MN một đèn có hiệu điện thế định mức 12 V thì đèn sáng bình thường. Tính công suất định mức của đèn. b) Mắc 6 đèn 6 V – 3 W thành x dãy, mỗi dãy y đèn vào MN thì các đèn sáng bình thường. Tìm cách mắc và dòng qua r. c) Tối đa bao nhiêu đèn 6 V – 3 W mắc vào MN mà vẫn sáng bình thường?",
+  "a) 24 W; b) 6 đèn song song (dòng qua r 3 A) hoặc 2 dãy mỗi dãy 3 đèn (dòng 1 A); c) tối đa 8 đèn (4 dãy, mỗi dãy 2 đèn)",
+  ["Câu a: r chịu 12 V nên dòng 2 A.", "Câu b: dòng mạch chính 0,5x, hiệu điện thế MN là 6y, xy = 6. Câu c: công suất trên MN lớn nhất là U²/(4r) = 24 W."],
+  "a) I = 12/6 = 2 A, P = 12·2 = 24 W. b) 24 = 6·0,5x + 6y với x = 6/y: y² − 4y + 3 = 0, y = 1 (x = 6, I = 3 A) hoặc y = 3 (x = 2, I = 1 A). c) Công suất trên MN lớn nhất khi RMN = r = 6 Ω, bằng 24²/24 = 24 W, đủ cho 24/3 = 8 đèn. Mắc 4 dãy mỗi dãy 2 đèn thì điện trở MN là 24/4 = 6 Ω, đúng.",
+  "24==6*0.5*6+6*1 and 24==6*0.5*2+6*3 and 24**2/(4*6)/3==8 and 2*12/4==6")
+P("D91", 2, "Hà Tĩnh 2013 – Ảnh ngược chiều gấp ba, dịch thấu kính",
+  "Đề thi vào 10 chuyên Hà Tĩnh năm 2013. Vật sáng AB vuông góc trục chính cho ảnh A'B' ngược chiều, cao gấp 3 lần vật, khoảng cách vật và ảnh AA' = 160 cm. a) Thấu kính loại gì? b) Tính tiêu cự. c) Giữ vật, dịch thấu kính ra xa vật thêm 20 cm thì ảnh dịch đi bao nhiêu so với ban đầu?",
+  "a) thấu kính hội tụ (ảnh thật); b) f = 30 cm; c) ảnh dịch 40 cm về phía vật",
+  ["Ảnh ngược chiều là ảnh thật nên d + d' = 160 và d' = 3d.", "Sau khi dịch, vật cách thấu kính 60 cm."],
+  "a) Ảnh ngược chiều nên là ảnh thật, thấu kính hội tụ. b) d = 40, d' = 120, f = 40·120/160 = 30 cm. c) d = 60 thì d' = 60·30/30 = 60 cm. Khoảng vật ảnh còn 120 cm, ảnh lùi về phía vật 40 cm.",
+  "abs(40*120/160-30)<1e-9 and abs(160-(60+60)-40)<1e-9")
+P("D92", 3, "Hà Tĩnh 2013 – Hai ca nô gặp nhau rồi quay về",
+  "Đề thi vào 10 chuyên Hà Tĩnh năm 2013. Hai bến A, B dọc một con sông cách nhau s km, nước chảy đều từ A đến B với 2 m/s. Hai ca nô xuất phát cùng lúc từ A và B, đi về phía nhau, cùng tốc độ v so với nước. Gặp nhau thì lập tức quay về bến cũ. Tổng thời gian đi về của hai ca nô hơn kém nhau 1 giờ. Nếu tốc độ so với nước là 1,5v thì hơn kém nhau 24 phút. Tính s.",
+  "s = 18 km",
+  ["Hai ca nô xích lại với tốc độ 2v nên gặp nhau sau s/(2v), không phụ thuộc dòng nước.", "Hiệu thời gian ra công thức gọn: 2s·v1/(v² − v1²), với v1 = 7,2 km/h."],
+  "Ca nô A: đi xuôi (v + v1)t, về ngược mất (v + v1)t/(v − v1). Ca nô B tương tự. Hiệu TA − TB = 2s·v1/(v² − v1²) = 1. Với 1,5v: 2s·v1/(2,25v² − v1²) = 0,4. Chia: 2,25v² − v1² = 2,5(v² − v1²), nên v² = 6v1². Thay vào: s = 5v1²/(2v1) = 2,5·7,2 = 18 km.",
+  "abs(2*18*7.2/(6*7.2**2-7.2**2)-1)<1e-9 and abs(2*18*7.2/(2.25*6*7.2**2-7.2**2)-0.4)<1e-9")
+P("D93", 2, "KHTN 2013 – Vật rỗng nổi và vật B đặt lên trên",
+  "Đề thi vào 10 chuyên KHTN Hà Nội năm 2013. Vật A hình trụ có phần rỗng bên trong, khối lượng 720 g, diện tích đáy 120 cm², nổi với hai phần ba thể tích chìm trong nước. Đặt lên A một vật đặc B hình trụ cùng diện tích đáy, trục trùng nhau, trục luôn thẳng đứng. Khối lượng riêng nước 1000, chất làm A 900, chất làm B 3000 kg/m³. a) Tìm thể tích phần rỗng của A. b) Bề dày B phải thế nào để: 1) B không chạm nước; 2) B không bị ngập hết.",
+  "a) 280 cm³; b) 1) bề dày B không quá 1 cm; 2) bề dày B nhỏ hơn 1,5 cm",
+  ["A nổi: 720 g = 1 g/cm³ × (2/3)V, nên V = 1080 cm³, cao 9 cm. Phần đặc của A: 720/0,9 = 800 cm³.", "B dày x cm nặng 360x gam. B không chạm nước khi A ngập vừa hết vẫn đủ đỡ: 720 + 360x ≤ 1080."],
+  "a) V = 1080 cm³, phần đặc 800 cm³, rỗng 280 cm³. b) 1) Lực đẩy tối đa khi A ngập hết: 1080 g. 720 + 360x ≤ 1080, x ≤ 1 cm. 2) Khi cả hai ngập hết, lực đẩy 1080 + 120x phải lớn hơn tổng khối lượng 720 + 360x: x nhỏ hơn 1,5 cm.",
+  "abs(720/(2/3)-720/0.9-280)<1e-9 and 720+360*1==1080 and 1080+120*1.5==720+360*1.5")
+P("D94", 3, "KHTN 2013 – Thả từng viên đá vào bình đầy nước nóng",
+  "Đề thi vào 10 chuyên KHTN Hà Nội năm 2013. Bình cách nhiệt đầy nước ở 90 độ C. Thả một viên nước đá 250 g ở 0 độ C vào thì có 250 g nước trào ra. Cân bằng nhiệt xong nước trong bình ở 56 độ C. Nhiệt dung riêng nước 4200, nhiệt nóng chảy nước đá 336 nghìn J/kg. Coi nước đá chỉ trao đổi nhiệt với phần nước còn lại. a) Tìm khối lượng nước ban đầu trong bình. b) Lần lượt thả tiếp từng viên như vậy, chờ cân bằng mới thả viên sau. Tìm nhiệt độ sau viên thứ n (khi viên đó tan hết). c) Từ viên thứ mấy thì đá không tan hết?",
+  "a) 1,25 kg; b) tn = 170·0,8^n − 80 độ C; c) từ viên thứ 4",
+  ["Câu a: 0,25·(336 000 + 4200·56) = (M − 0,25)·4200·(90 − 56).", "Câu b: mỗi lần còn 1 kg nước ở nhiệt độ cũ: 4200(t cũ − t mới) = 0,25(336 000 + 4200·t mới), ra t mới = 0,8·t cũ − 16."],
+  "a) Đá thu 142 800 J, nước còn lại tỏa (M − 0,25)·142 800, nên M = 1,25 kg. b) tn = 0,8·t(n−1) − 16. Đặt tn + 80 = 0,8(t(n−1) + 80), với t0 = 90 được tn = 170·0,8^n − 80. Kiểm tra t1 = 56. c) t3 ≈ 7 độ C, công thức cho t4 âm, nên viên thứ 4 không tan hết.",
+  "abs(170*0.8-80-56)<1e-9 and 170*0.8**3-80>0 and 170*0.8**4-80<0 and abs(0.25*(336000+4200*56)-(1.25-0.25)*4200*34)<1e-6")
+P("D95", 3, "Nam Định 2015 – Thanh gỗ nổi lên khỏi mặt nước",
+  "Đề thi vào 10 chuyên Nam Định năm 2015. Thanh trụ đặc AB đồng chất, tiết diện S, trọng lượng riêng d, dài L, được giữ thẳng đứng trong nước trọng lượng riêng d0, đầu trên A cách mặt nước H0. Thả thanh cho nó chuyển động lên theo phương thẳng đứng, bỏ qua sức cản. Biết từ lúc thanh bắt đầu nhô lên đến lúc ra khỏi hẳn mặt nước, lực đẩy trung bình bằng nửa lực đẩy lớn nhất. 1) Lập biểu thức công của lực đẩy Ác-si-mét đến khi đầu dưới B lên khỏi mặt nước. 2) Với d = 6000 N/m³, L = 24 cm, d0 = 10 000 N/m³: a) H0 = 12 cm, tính khoảng cách từ B đến mặt nước khi thanh lên cao nhất; b) tìm điều kiện của H0 để thanh lên được hoàn toàn khỏi mặt nước.",
+  "1) A = d0·S·L·H0 + ½·d0·S·L²; 2a) 4 cm; 2b) H0 ≥ 6 cm",
+  ["Giai đoạn đầu lực đẩy không đổi d0SL trên quãng H0. Giai đoạn sau lực đẩy giảm đều, trung bình bằng nửa, trên quãng L.", "Thanh lên cao nhất khi công của trọng lực d·S·L(H0 + L + h) bằng công lực đẩy."],
+  "1) A = d0SLH0 + ½d0SL². 2a) dSL(H0 + L + h) = d0SLH0 + ½d0SL², nên d(H0 + L + h) = d0(H0 + L/2). Thay số: 6000(36 + h) = 10 000·24, h = 4 cm. 2b) Cần h ≥ 0: H0(d0 − d) ≥ L(d − d0/2), H0 ≥ 24·1000/4000 = 6 cm.",
+  "abs(10000*(12+12)/6000-36-4)<1e-9 and abs(24*(6000-5000)/(10000-6000)-6)<1e-9")
+P("D96", 2, "Nam Định 2015 – Pha nước tắm bằng nước đá",
+  "Đề thi vào 10 chuyên Nam Định năm 2015. Nước trong bình chứa nóng 45 độ C. Người ta pha với 6 kg nước đá ở 0 độ C, được chậu nước 37 độ C. Nhiệt dung riêng nước 4200, nhiệt nóng chảy đá 336 nghìn J/kg, khối lượng riêng nước 1000, nước đá 900 kg/m³. a) Pha xong được bao nhiêu lít nước? b) Lúc vừa thả đá, mực nước trong chậu cao bằng miệng chậu. Khi đá tan hết, nước có trào ra không?",
+  "a) khoảng 93,75 lít (87,75 kg nước nóng + 6 kg đá); b) không trào, mực nước giữ nguyên (bỏ qua sự co giãn vì nhiệt)",
+  ["Nhiệt đá thu: 6·(336 000 + 4200·37). Nhiệt nước nóng tỏa: M·4200·(45 − 37).", "Đá nổi chiếm chỗ một thể tích nước đúng bằng khối lượng của nó; khi tan, nước đá biến thành đúng thể tích đó."],
+  "a) 6(336 000 + 155 400) = M·33 600, M = 87,75 kg. Tổng 93,75 kg tức 93,75 lít. b) Đá nổi chiếm chỗ 6 lít nước, tan ra cũng đúng 6 lít, nên mực nước không đổi, không trào (nếu bỏ qua sự co giãn vì nhiệt).",
+  "abs(6*(336000+4200*37)/(4200*8)-87.75)<1e-9")
+P("D97", 2, "Nam Định 2015 – Biến trở chia hai nhánh song song",
+  "Đề thi vào 10 chuyên Nam Định năm 2015. R1 = 3 Ω, R2 = 2 Ω mắc nối tiếp với biến trở MN có điện trở toàn phần 20 Ω. Hai đầu M và N của biến trở nối chung với nhau, con chạy C là đầu còn lại, nên hai phần CM và CN mắc song song. UAB = 18 V. a) C ở chính giữa MN: tính dòng mạch chính, dòng qua mỗi phần biến trở và hiệu điện thế trên đoạn gồm R2 và biến trở. b) Đặt C ở đâu để công suất trên biến trở lớn nhất? Tính công suất đó.",
+  "a) 1,8 A; mỗi phần 0,9 A; 12,6 V; b) C ở chính giữa, công suất 16,2 W",
+  ["Hai phần x và 20 − x song song có điện trở x(20 − x)/20, lớn nhất bằng 5 Ω khi x = 10.", "Công suất trên một điện trở mắc nối tiếp với 5 Ω lớn nhất khi điện trở đó bằng 5 Ω."],
+  "a) R = 3 + 2 + 5 = 10 Ω, I = 1,8 A, mỗi nửa biến trở 0,9 A, U = 18 − 1,8·3 = 12,6 V. b) Công suất cực đại khi điện trở biến trở bằng R1 + R2 = 5 Ω, điều này xảy ra khi C ở giữa. P = 1,8²·5 = 16,2 W.",
+  "abs(18/10-1.8)<1e-9 and abs(18-1.8*3-12.6)<1e-9 and abs(1.8**2*5-16.2)<1e-9")
+P("D98", 2, "Nam Định 2015 – Điều kiện có hai vị trí thấu kính",
+  "Đề thi vào 10 chuyên Nam Định năm 2015. Vật sáng AB song song với màn, cách màn L. Đặt giữa vật và màn một thấu kính hội tụ tiêu cự 20 cm. a) Tìm điều kiện của L để có hai vị trí thấu kính cho ảnh rõ nét trên màn. b) Thay AB bằng điểm sáng S trên trục chính, cách màn 45 cm. Đặt thấu kính ở đâu để vệt sáng trên màn nhỏ nhất?",
+  "a) L lớn hơn 80 cm; b) thấu kính cách S 30 cm",
+  ["Câu a: d + d' = L với 1/d + 1/d' = 1/f cho d² − Ld + Lf = 0. Cần hai nghiệm phân biệt.", "Câu b: bán kính vệt sáng tỉ lệ với 1 − (45 − d)(d − 20)/(20d). Tìm d để biểu thức (45 − d)(d − 20)/d lớn nhất."],
+  "a) Phương trình d² − Ld + 20L = 0 có hai nghiệm khi L² − 80L lớn hơn 0, tức L lớn hơn 80 cm. b) (45 − d)(d − 20)/d = 65 − d − 900/d, lớn nhất khi d = 900/d, tức d = 30 cm. Vậy thấu kính cách S 30 cm, cách màn 15 cm.",
+  "abs(sqrt(900)-30)<1e-9 and (45-30)*(30-20)/30 > (45-29)*(29-20)/29")
+P("D99", 3, "Nam Định 2015 – Ác-si-mét kiểm tra vương miện",
+  "Đề thi vào 10 chuyên Nam Định năm 2015. Cần tìm phần trăm khối lượng vàng trong một vương miện có thể bị pha bạc. Dụng cụ: vương miện; một khối vàng nguyên chất cùng khối lượng với vương miện; thanh nhựa cứng nhẹ; chậu nước; đĩa có móc treo; nhiều quả nặng đã biết khối lượng; dây treo, giá treo. Biết khối lượng riêng của vàng DV và bạc DB. Nêu cơ sở lí thuyết và cách làm.",
+  "Dùng thanh làm đòn bẩy cân bằng. Nhúng khối vàng vào nước, bớt quả nặng m1 để thanh lại cân bằng; thay bằng vương miện, bớt m2. Tỉ lệ vàng x = (m1·DV − m2·DB) / [m1·(DV − DB)].",
+  ["Khi nhúng vật vào nước, phải bớt bên kia một khối lượng tỉ lệ với lực đẩy, tức tỉ lệ với thể tích vật. Do đó thể tích vương miện chia thể tích khối vàng bằng m2/m1.", "Vương miện khối lượng m0, phần vàng x: thể tích x·m0/DV + (1 − x)·m0/DB."],
+  "Treo vương miện một đầu thanh, đĩa quả nặng đầu kia, tìm điểm treo để thanh cân bằng. Nhúng khối vàng vào nước, bớt quả nặng m1 để cân bằng lại. Thay bằng vương miện nhúng trong nước, bớt m2. Vì cánh tay đòn không đổi nên Vm/Vv = m2/m1. Với Vv = m0/DV và Vm = m0[x/DV + (1 − x)/DB], giải ra x = (m1DV − m2DB)/[m1(DV − DB)]. Nếu m2 = m1 thì x = 1, vương miện là vàng thật.",
+  "abs((1*19.3-1*10.5)/(1*(19.3-10.5))-1)<1e-9")
+P("D100", 3, "Bắc Ninh 2016 – Hai ca nô trao bưu kiện",
+  "Đề thi vào 10 chuyên Bắc Ninh năm 2016. Hai bến A và B cách nhau 32 km dọc sông, nước chảy từ A đến B. Hai ca nô cùng xuất phát đi về phía nhau, gặp nhau trao bưu kiện rồi lập tức quay về bến cũ. Tốc độ mỗi ca nô so với nước là v1, nước chảy v2. Thời gian đi về của hai ca nô hơn kém nhau 2 giờ. Nếu tốc độ ca nô tăng gấp 3 thì hơn kém nhau 12 phút. a) Chỗ gặp nhau gần A hay gần B? b) Tìm v1 và v2.",
+  "a) gần B hơn (cách A khoảng 21,3 km); b) v1 = 12 km/h, v2 = 4 km/h",
+  ["Hai ca nô gặp nhau sau s/(2v1). Ca nô từ A đi xuôi nên đi được xa hơn.", "Hiệu thời gian bằng 2s·v2/(v1² − v2²). Lập hai phương trình cho hai trường hợp."],
+  "a) Ca nô từ A đi xuôi dòng, nhanh hơn, nên gặp nhau gần B. b) 64v2/(v1² − v2²) = 2 và 64v2/(9v1² − v2²) = 0,2. Chia: 9v1² − v2² = 10(v1² − v2²), v1 = 3v2. Thay: 64v2/(8v2²) = 2, v2 = 4 km/h, v1 = 12 km/h. Chỗ gặp cách A: 16·(32/24) ≈ 21,3 km.",
+  "abs(64*4/(144-16)-2)<1e-9 and abs(64*4/(9*144-16)-0.2)<1e-9")
+P("D101", 2, "Bắc Ninh 2016 – Chèo thuyền sang bờ bên kia",
+  "Đề thi vào 10 chuyên Bắc Ninh năm 2016. Nước sông chảy 3 km/h. Người chèo thuyền muốn đi từ M ở bờ này đến N ở bờ bên kia. H là điểm bờ bên kia đối diện M, MH = 300 m, HN = 400 m, N nằm về phía hạ lưu so với H. Hỏi tốc độ chèo so với nước nhỏ nhất là bao nhiêu để tới được N?",
+  "1,8 km/h",
+  ["Vận tốc thực bằng vận tốc nước cộng vận tốc chèo, phải hướng dọc MN.", "Vận tốc chèo nhỏ nhất khi nó vuông góc với MN. MN = 500 m, góc giữa dòng nước và MN có sin bằng 300/500."],
+  "Để tới N, tổng vận tốc nước và vận tốc chèo phải nằm trên đường MN. Vectơ chèo ngắn nhất là đoạn vuông góc hạ từ đầu vectơ dòng nước xuống MN: u = 3·sin α với sin α = 300/500 = 0,6. Vậy u nhỏ nhất bằng 1,8 km/h, hướng vuông góc với MN.",
+  "abs(3*300/500-1.8)<1e-9")
+P("D102", 3, "Bắc Ninh 2016 – Tôi thép rồi tưới nước",
+  "Đề thi vào 10 chuyên Bắc Ninh năm 2016. Khối thép đặc hình trụ cao 20 cm, nặng 15,8 kg, ở 20 độ C, nung trong lò than 15 phút lên 820 độ C. 1) Biết 10% nhiệt của than truyền cho thép, tính lượng than cháy trung bình trong 1 giờ. 2) Đặt khối thép nóng trong vại sành cách nhiệt hình trụ đường kính trong 30 cm, tưới nước 20 độ C lên cho tới khi vừa ngập khối thép. Nhiệt độ cân bằng 70 độ C. Tính lượng nước đã tưới. Cho: khối lượng riêng nước 1000, thép 7900 kg/m³; nhiệt dung riêng nước 4200, thép 460 J/kg.K; nhiệt hóa hơi nước 2,3 triệu J/kg; năng suất tỏa nhiệt của than 34 triệu J/kg.",
+  "1) khoảng 6,84 kg than mỗi giờ; 2) khoảng 13,2 kg nước (khoảng 1,1 kg đã hóa hơi, còn lại 12,1 kg)",
+  ["Thép nhận 15,8·460·800 J trong 15 phút. Thể tích thép 2 lít, đáy 100 cm².", "Nước còn lại trong vại lấp phần trống quanh khối thép cao 20 cm: (706,9 − 100)·20 cm³. Phần nước tưới vào chạm thép nóng đã bốc hơi."],
+  "1) Q = 15,8·460·800 ≈ 5,81 triệu J trong 15 phút. Than cần trong 15 phút: 5,81/3,4 ≈ 1,71 kg, một giờ ≈ 6,84 kg. 2) Thép tỏa 15,8·460·750 ≈ 5,45 triệu J. Nước còn lại: 12,14 kg, nhận 12,14·4200·50 ≈ 2,55 triệu J. Phần còn 2,90 triệu J làm hóa hơi m kg: m(4200·80 + 2,3 triệu) = 2,90 triệu, m ≈ 1,10 kg. Tổng nước tưới ≈ 13,2 kg.",
+  "abs(15.8*460*800/(0.1*34e6)*4-6.84)<0.01 and abs((pi*15**2-100)*20/1000+(15.8*460*750-(pi*15**2-100)*20/1000*4200*50)/(4200*80+2.3e6)-13.24)<0.02")
+P("D103", 2, "Bắc Ninh 2016 – Tiêu cự từ hai vị trí thấu kính",
+  "Đề thi vào 10 chuyên Bắc Ninh năm 2016. Vật AB và màn cố định, cách nhau L. Dịch thấu kính hội tụ giữa vật và màn thấy có hai vị trí cho ảnh rõ nét, cách nhau một đoạn l. Tìm tiêu cự theo L và l.",
+  "f = (L² − l²)/(4L)",
+  ["Hai vị trí đối xứng: vật cách thấu kính d1 ở vị trí này thì cách d2 = L − d1 ở vị trí kia. d1 − d2 = l.", "d1 = (L + l)/2, d1' = (L − l)/2, rồi dùng f = d·d'/(d + d')."],
+  "Do tính thuận nghịch, hai vị trí có d và d' đổi chỗ cho nhau: d = (L + l)/2, d' = (L − l)/2. f = dd'/(d + d') = (L² − l²)/(4L).",
+  "abs((100**2-20**2)/400-60*40/100)<1e-9")
+P("D104", 2, "Yên Bái 2018 – Chạy quanh tam giác",
+  "Đề thi vào 10 chuyên Yên Bái năm 2018. Ba đoạn đường tạo thành tam giác ABC với AB = AC = 450 m, BC = 150 m. An và Bình cùng xuất phát từ B, mỗi người chạy với tốc độ không đổi. An chạy B đến C rồi đến A, Bình chạy thẳng B đến A, cả hai đến A sau 5 phút. a) Tính vận tốc mỗi người. b) Đến A, cả hai lập tức đổi chiều, chạy vòng quanh tam giác theo hướng ngược với lúc trước, tốc độ như cũ. Sau ít nhất bao lâu hai người lại cùng có mặt tại A?",
+  "a) An 2 m/s (120 m/phút), Bình 1,5 m/s (90 m/phút); b) 35 phút",
+  ["Chu vi tam giác 1050 m. An đi hết một vòng mất 1050/120 phút, Bình mất 1050/90 phút.", "Tìm bội chung nhỏ nhất của 35/4 phút và 35/3 phút."],
+  "a) An chạy 600 m trong 300 giây: 2 m/s. Bình 450 m: 1,5 m/s. b) Một vòng 1050 m: An mất 8,75 phút, Bình mất 35/3 phút. Bội chung nhỏ nhất là 35 phút (An 4 vòng, Bình 3 vòng).",
+  "abs(4*1050/120-35)<1e-9 and abs(3*1050/90-35)<1e-9")
+P("D105", 2, "Yên Bái 2018 – Quả cầu nhôm có lỗ hổng",
+  "Đề thi vào 10 chuyên Yên Bái năm 2018. Quả cầu nhôm có lỗ hổng bên trong treo vào lực kế. Nhúng ngập hoàn toàn trong nước lực kế chỉ 0,48 N, trong dầu chỉ 0,66 N. Khối lượng riêng nhôm 2700, dầu 700, nước 1000 kg/m³. Tìm thể tích lỗ hổng.",
+  "20 cm³",
+  ["P − 10 000V = 0,48 và P − 7000V = 0,66.", "Từ đó tìm V và P, rồi thể tích nhôm bằng khối lượng chia 2700."],
+  "Trừ hai phương trình: 3000V = 0,18, V = 60 cm³. P = 0,48 + 0,6 = 1,08 N, khối lượng 108 g, thể tích nhôm 108/2,7 = 40 cm³. Lỗ hổng 60 − 40 = 20 cm³.",
+  "abs(0.18/3000-6e-5)<1e-12 and abs(108/2.7-40)<1e-9")
+P("D106", 3, "Yên Bái 2018 – Nước đá chưa tan hết",
+  "Đề thi vào 10 chuyên Yên Bái năm 2018. Bình nhiệt lượng kế chứa nước đá ở −10 độ C. Đổ vào 0,7 kg nước ở 50 độ C. Cân bằng xong, tổng thể tích các chất trong bình là 1,2 lít. Bỏ qua trao đổi nhiệt với bình và môi trường. a) Nước đá có tan hết không? b) Tìm tổng khối lượng các chất trong bình. Khối lượng riêng nước 1000, nước đá 900 kg/m³; nhiệt dung riêng nước 4200, nước đá 2100; nhiệt nóng chảy 340 nghìn J/kg.",
+  "a) không tan hết; b) khoảng 1,19 kg",
+  ["Giả sử tan hết thì 1,2 lít nước nặng 1,2 kg, đá là 0,5 kg. Nhiệt cần để làm tan lớn hơn nhiệt nước tỏa được, vô lí.", "Cân bằng ở 0 độ C. Gọi đá ban đầu M, phần tan x: 147 000 = 21 000M + 340 000x, và thể tích (0,7 + x) + (M − x)/0,9 = 1,2 lít."],
+  "a) Nếu tan hết, đá 0,5 kg cần 0,5·(21 000 + 340 000) = 180 500 J, nước chỉ tỏa 0,7·4200·50 = 147 000 J. Vô lí, nên đá không tan hết, nhiệt độ cuối 0 độ C. b) Từ phương trình thể tích: M = 0,45 + 0,1x. Thay vào phương trình nhiệt: x ≈ 0,402 kg, M ≈ 0,490 kg. Tổng khối lượng ≈ 0,7 + 0,49 = 1,19 kg.",
+  "abs(21000*(0.45+0.1*0.40207)+340000*0.40207-147000)<10 and abs((0.7+0.40207)+(0.45+0.1*0.40207-0.40207)/0.9-1.2)<1e-4")
+P("D107", 2, "Yên Bái 2018 – Hệ hai thấu kính cho ảnh không đổi",
+  "Đề thi vào 10 chuyên Yên Bái năm 2018. Vật AB vuông góc trục chính thấu kính hội tụ L1 tiêu cự 20 cm. a) AB cao 2 cm, cách thấu kính 30 cm: tìm vị trí, tính chất, chiều cao ảnh. b) Dịch AB dọc trục chính. Khi khoảng cách AB và ảnh thật nhỏ nhất thì ảnh lớn gấp mấy lần vật? c) Sau L1 đặt thấu kính hội tụ L2 cùng trục. Khi dịch AB thì ảnh qua hệ luôn có độ lớn không đổi và cao gấp 3 lần AB. Tìm tiêu cự L2.",
+  "a) ảnh thật, ngược chiều, cách thấu kính 60 cm, cao 4 cm; b) ảnh bằng vật (khoảng cách nhỏ nhất 80 cm khi vật cách 40 cm); c) f2 = 60 cm",
+  ["Khoảng cách vật và ảnh thật nhỏ nhất bằng 4f, khi d = d' = 2f.", "Ảnh không đổi khi dịch vật nghĩa là chùm song song vào L1 ló ra L2 vẫn song song: tiêu điểm sau L1 trùng tiêu điểm trước L2. Khi đó độ phóng đại bằng f2/f1."],
+  "a) d' = 30·20/10 = 60 cm, ảnh thật ngược chiều, cao 2·60/30 = 4 cm. b) d + d' nhỏ nhất bằng 4f = 80 cm khi d = d' = 40 cm, ảnh bằng vật. c) Hệ vô tiêu: tia song song trục chính ở độ cao h ra khỏi L2 vẫn song song ở độ cao h·f2/f1. Ảnh cao gấp 3 nên f2 = 3·20 = 60 cm.",
+  "abs(30*20/10-60)<1e-9 and abs(40*20/20-40)<1e-9 and 3*20==60")
+P("D108", 1, "Yên Bái 2018 – Đo trọng lượng riêng viên sỏi",
+  "Đề thi vào 10 chuyên Yên Bái năm 2018. Có một viên sỏi, lực kế, sợi dây mảnh nhẹ, bình nước. Biết trọng lượng riêng nước d0. Trình bày cách xác định trọng lượng riêng viên sỏi.",
+  "Đo trọng lượng P trong không khí, rồi nhúng ngập trong nước đo P1. Trọng lượng riêng d = d0·P/(P − P1).",
+  ["Hiệu P − P1 chính là lực đẩy Ác-si-mét, bằng d0·V.", "Trọng lượng riêng d = P/V."],
+  "Buộc sỏi vào dây, treo vào lực kế đọc P. Nhúng ngập sỏi trong nước (không chạm đáy) đọc P1. Lực đẩy FA = P − P1 = d0V, nên V = (P − P1)/d0. Vậy d = P/V = d0·P/(P − P1).",
+  None)
+P("D109", 3, "Phú Thọ 2012 – Đổ thêm dầu vào bình thông nhau",
+  "Đề thi vào 10 chuyên Hùng Vương, Phú Thọ năm 2012. Bình thông nhau hai nhánh tiết diện bằng nhau, nối bằng một ống nằm ngang có tiết diện nhỏ bằng một phần mười tiết diện mỗi nhánh. Nhánh trái chứa dầu, nhánh phải chứa nước, mặt ngăn cách dầu và nước nằm trong ống ngang. Đổ thêm lên nhánh nước một lớp dầu cao 0,5 cm. Khối lượng riêng dầu 850, nước 1000 kg/m³. Mặt ngăn cách trong ống ngang dịch chuyển bao nhiêu?",
+  "khoảng 2,3 cm, về phía nhánh dầu",
+  ["Mặt ngăn cách dịch x trong ống ngang thì mực chất lỏng mỗi nhánh thay đổi x/10.", "Áp suất hai bên mặt ngăn cách vẫn bằng nhau: thay đổi áp suất bên trái (cột dầu cao thêm x/10) bằng thay đổi bên phải (thêm dầu 0,5 cm, nước hạ x/10)."],
+  "Dầu bên trái cao thêm x/10, nước bên phải hạ x/10. Cân bằng: 850·x/10 = 850·0,5 − 1000·x/10. Suy ra x = 10·850·0,5/1850 ≈ 2,3 cm, mặt ngăn cách dịch về phía nhánh chứa dầu.",
+  "abs(10*850*0.5/1850-2.297)<0.001")
+P("D110", 3, "Phú Thọ 2012 – Thay thấu kính phân kỳ bằng hội tụ",
+  "Đề thi vào 10 chuyên Hùng Vương, Phú Thọ năm 2012. Vật AB đặt trước thấu kính phân kỳ cho ảnh cao 0,8 cm. Thay bằng thấu kính hội tụ cùng tiêu cự, đặt cùng chỗ, thì được ảnh thật cao 4 cm. Hai ảnh cách nhau 72 cm. Tìm tiêu cự và chiều cao vật.",
+  "f = 20 cm, vật cao 2 cm (vật cách thấu kính 30 cm)",
+  ["Phân kỳ: ảnh/vật = f/(d + f). Hội tụ, ảnh thật: ảnh/vật = f/(d − f).", "Chia hai tỉ số: (d + f)/(d − f) = 5, nên d = 1,5f. Ảnh ảo cách thấu kính 0,6f, ảnh thật cách 3f, ở hai phía."],
+  "(d + f)/(d − f) = 4/0,8 = 5 nên d = 1,5f. Phân kỳ: ảnh/vật = 1/2,5 nên vật cao 2 cm. Ảnh ảo cùng phía vật, cách 0,6f; ảnh thật phía kia, cách 3f. Khoảng cách 3,6f = 72, f = 20 cm.",
+  "abs(30*20/(30+20)+30*20/(30-20)-72)<1e-9 and abs(2*20/50-0.8)<1e-9 and abs(2*20/10-4)<1e-9")
+P("D111", 3, "KHTN 2016 – Hai đèn, khóa K và biến trở",
+  "Đề thi vào 10 chuyên KHTN Hà Nội năm 2016. Đèn Đ1 (6 V – 6 W) nối tiếp với cụm gồm đèn Đ2 (12 V – 6 W) mắc song song biến trở Rx; toàn bộ nối tiếp thêm điện trở R; khóa K mắc song song với R. Hiệu điện thế U không đổi. a) K đóng, Rx = R0 thì cả hai đèn sáng bình thường. Tìm U và R0. b) Mở K. Khi Rx = R1 thì Đ1 sáng bình thường, khi Rx = R2 = 10R1 thì Đ2 sáng bình thường. Tính R, R1, R2.",
+  "a) U = 18 V, R0 = 24 Ω; b) R = 4 Ω, R1 = 12 Ω, R2 = 120 Ω",
+  ["K đóng thì R bị nối tắt: U = 6 + 12. Dòng Đ1 là 1 A, Đ2 là 0,5 A, nên Rx nhận 0,5 A ở 12 V.", "Điện trở Đ1 = 6 Ω, Đ2 = 24 Ω. Lập hai phương trình cho hai trường hợp rồi dùng R2 = 10R1."],
+  "a) U = 18 V, R0 = 12/0,5 = 24 Ω. b) Rx = R1: dòng 1 A, 18 = 6 + R + 24R1/(24 + R1). Rx = R2: Đ2 ở 12 V, dòng chính 0,5 + 12/R2, và 18 − 12 = (6 + R)(0,5 + 12/R2). Giải với R2 = 10R1 được R1 = 12 Ω, R2 = 120 Ω, R = 4 Ω.",
+  "abs(6+4+24*12/36-18)<1e-9 and abs((6+4)*(0.5+12/120)-6)<1e-9")
+P("D112", 3, "KHTN 2016 – Múc nước vòng qua ba bình",
+  "Đề thi vào 10 chuyên KHTN Hà Nội năm 2016. Ba bình cách nhiệt chứa nước: bình 1 ở 80 độ C, bình 2 ở 60 độ C, bình 3 ở t3. Lần lượt múc một lượng m từ bình 1 sang bình 2, từ bình 2 sang bình 3, từ bình 3 về bình 1, mỗi lần chờ cân bằng nhiệt. Nhiệt độ cân bằng sau đó: bình 1 là 70 độ C, bình 3 là 40 độ C. Lúc đầu bình 1 và bình 2 đều có 1 kg nước. a) Tính m và nhiệt độ bình 2. b) Làm như thế rất nhiều lần thì bình 1 cuối cùng ở 58 độ C. Tính khối lượng m3 và nhiệt độ t3 ban đầu của bình 3.",
+  "a) m = 0,25 kg, bình 2 ở 64 độ C; b) m3 = 1 kg, t3 = 34 độ C",
+  ["Bình 1 còn 1 − m kg ở 80 độ C nhận m kg ở 40 độ C, thành 70 độ C.", "Làm rất nhiều lần thì cả ba bình cùng nhiệt độ 58 độ C. Dùng bảo toàn nhiệt lượng cho toàn hệ."],
+  "a) (1 − m)(80 − 70) = m(70 − 40), m = 0,25 kg. Bình 2: 1·(t − 60) = 0,25(80 − t), t = 64 độ C. b) Lần đầu ở bình 3: m3(40 − t3) = 0,25(64 − 40) = 6. Cuối cùng: 1·(70 − 58) + 1·(64 − 58) = m3(58 − 40), m3 = 1 kg, t3 = 34 độ C.",
+  "abs(0.75*10-0.25*30)<1e-9 and abs((60+0.25*80)/1.25-64)<1e-9 and 1*(40-34)==6 and 12+6==1*18")
+P("D113", 3, "KHTN 2016 – Khôi phục thấu kính từ ba điểm",
+  "Đề thi vào 10 chuyên KHTN Hà Nội năm 2016. Vật nhỏ vuông góc trục chính thấu kính hội tụ. Đặt vật tại A thì ảnh thật tại A'. Đặt vật tại B thì ảnh ảo tại B', cao bằng ảnh tại A'. A và B cùng ở trước thấu kính. Trên trục chính, B' nằm giữa A và A', với AB' = 8 cm, B'A' = 64 cm. Tìm tiêu cự.",
+  "f = 16 cm",
+  ["Hai ảnh cao bằng nhau, ngược chiều. Tia song song trục chính tới thấu kính ló qua F', và F' chia đoạn B'A' theo tỉ lệ chiều cao hai ảnh, tức F' là trung điểm B'A'.", "Với ảnh thật có hệ thức OA'² = A'A·A'F'."],
+  "F' là trung điểm B'A', nên A'F' = 32 cm. AA' = 72 cm. OA'² = 72·32 = 2304, OA' = 48 cm, OA = 24 cm. f = 24·48/72 = 16 cm. Kiểm tra: vật tại B cách 8 cm cho ảnh ảo cách 16 cm, đúng ở B'.",
+  "abs(24*48/72-16)<1e-9 and abs(sqrt(72*32)-48)<1e-9 and abs(8*16/(16-8)-16)<1e-9")
+P("D114", 3, "KHTN 2016 – Cân vật bằng thanh có vạch chia",
+  "Đề thi vào 10 chuyên KHTN Hà Nội năm 2016. Thanh cứng đồng chất AB nặng 100 g, dài 50 cm, có vạch chia đến mm. Treo thanh bằng sợi chỉ tại C với BC = 19 cm. Vật khối lượng M (từ 50 đến 60 g), khối lượng riêng D (từ 4 đến 5 g/cm³) treo tại I cách B một khoảng l1 để thanh cân bằng nằm ngang. Sau đó nhúng ngập vật trong nước, dời điểm treo đến J cách B một khoảng l2 để thanh lại cân bằng. a) Lập biểu thức tính M và D. b) l1 và l2 nằm trong khoảng nào?",
+  "a) M = 600/(19 − l1) gam, D = (19 − l2)/(l1 − l2) g/cm³; b) l1 từ 7 đến 9 cm, l2 từ 3 đến 6,5 cm",
+  ["Trọng tâm thanh cách B 25 cm, tức cách C 6 cm về phía A. Mômen: M(19 − l1) = 100·6.", "Nhúng trong nước, lực kéo vật giảm còn M(1 − 1/D): M(1 − 1/D)(19 − l2) = 600."],
+  "a) M = 600/(19 − l1). Chia hai phương trình: 1 − 1/D = (19 − l1)/(19 − l2), nên D = (19 − l2)/(l1 − l2). b) M từ 50 đến 60 g thì 19 − l1 từ 10 đến 12, l1 từ 7 đến 9 cm. 19 − l2 = (600/M)·D/(D − 1), với D/(D − 1) từ 1,25 đến 4/3: 19 − l2 từ 12,5 đến 16, l2 từ 3 đến 6,5 cm.",
+  "abs(600/60*5/4-12.5)<1e-9 and abs(600/50*4/3-16)<1e-9 and abs((19-3)/(9-3)-8/3)<1e-9")
+
+_T = ("65 dien 66 dien 67 quang 68 dien 69 quang 70 dien 71 dien 72 co 73 nhiet 74 quang "
+      "75 co 76 nhiet 77 quang 78 co 79 co 80 co 81 nhiet 82 dien 83 co 84 nhiet 85 co 86 quang "
+      "87 co 88 quang 89 dien 90 dien 91 quang 92 co 93 co 94 nhiet 95 co 96 nhiet 97 dien 98 quang "
+      "99 thuchanh 100 co 101 co 102 nhiet 103 quang 104 co 105 co 106 nhiet 107 quang 108 thuchanh "
+      "109 co 110 quang 111 dien 112 nhiet 113 quang 114 thuchanh").split()
+TOPICS = {"D" + _T[i]: _T[i + 1] for i in range(0, len(_T), 2)}
