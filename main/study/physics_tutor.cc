@@ -501,6 +501,61 @@ bool PhysicsTutor::SolutionOnScreen(std::string& title, std::string& text) {
     return true;
 }
 
+int PhysicsTutor::PickProblem(const std::string& mode, int topic, int level, const char*& note,
+                              std::string& error) {
+    std::vector<size_t> pool;
+    note = nullptr;
+    if (mode == "review") {
+        // Spaced review: the most overdue problem first, then any other wrong one.
+        pool = DueReviews(Current(), topic);
+        if (!pool.empty()) {
+            pool.resize(1);
+        } else {
+            pool = Candidates(topic, level, false, true);
+            if (pool.empty()) {
+                error = "Nothing to review: the student has no wrong problems here.";
+                return -1;
+            }
+            note = "Nothing is due for review today; this wrong problem comes early.";
+        }
+    } else if (mode == "new") {
+        if (level == 0) {
+            for (int lv = 1; lv <= 3 && pool.empty(); ++lv) {
+                pool = Candidates(topic, lv, true, false);
+            }
+        } else {
+            pool = Candidates(topic, level, true, false);
+        }
+        if (pool.empty()) {
+            pool = Candidates(topic, level, false, false);
+            note = "The student has done every problem here; this one is a repeat.";
+        }
+    } else {
+        error = "Use mode new, review, id or exam.";
+        return -1;
+    }
+    if (pool.empty()) {
+        error = "No problem matches.";
+        return -1;
+    }
+    return static_cast<int>(pool[esp_random() % pool.size()]);
+}
+
+std::string PhysicsTutor::PickOnScreen(bool review) {
+    const char* note = nullptr;
+    std::string error;
+    int index = PickProblem(review ? "review" : "new", -1, 0, note, error);
+    if (index < 0) {
+        auto* display = Board::GetInstance().GetDisplay();
+        if (display != nullptr) {
+            display->ShowNotification(review ? "Chưa có bài sai nào để ôn" : "Không tìm thấy bài", 4000);
+        }
+        return "";
+    }
+    ShowOnScreen(static_cast<size_t>(index));
+    return kPhysicsProblems[index].id;
+}
+
 void PhysicsTutor::ShowOnScreen(size_t index) {
     const auto& p = kPhysicsProblems[index];
     if (screen_problem_ != static_cast<int>(index)) {
@@ -685,39 +740,13 @@ void PhysicsTutor::RegisterTools() {
                 return json;
             }
 
-            std::vector<size_t> pool;
             const char* note = nullptr;
-            if (mode == "review") {
-                // Spaced review: the most overdue problem first, then any other wrong one.
-                pool = DueReviews(Current(), topic);
-                if (!pool.empty()) {
-                    pool.resize(1);
-                } else {
-                    pool = Candidates(topic, level, false, true);
-                    if (pool.empty()) {
-                        return ErrorJson("Nothing to review: the student has no wrong problems here.");
-                    }
-                    note = "Nothing is due for review today; this wrong problem comes early.";
-                }
-            } else if (mode == "new") {
-                if (level == 0) {
-                    for (int lv = 1; lv <= 3 && pool.empty(); ++lv) {
-                        pool = Candidates(topic, lv, true, false);
-                    }
-                } else {
-                    pool = Candidates(topic, level, true, false);
-                }
-                if (pool.empty()) {
-                    pool = Candidates(topic, level, false, false);
-                    note = "The student has done every problem here; this one is a repeat.";
-                }
-            } else {
-                return ErrorJson("Use mode new, review, id or exam.");
+            std::string error;
+            const int picked = PickProblem(mode, topic, level, note, error);
+            if (picked < 0) {
+                return ErrorJson(error.c_str());
             }
-            if (pool.empty()) {
-                return ErrorJson("No problem matches.");
-            }
-            const size_t index = pool[esp_random() % pool.size()];
+            const size_t index = static_cast<size_t>(picked);
             ShowOnScreen(index);
             cJSON* json = ProblemJson(index);
             cJSON_AddStringToObject(json, "learner", learner_name.c_str());
