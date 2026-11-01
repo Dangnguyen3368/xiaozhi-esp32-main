@@ -39,3 +39,9 @@ CONFIG_LV_USE_SNAPSHOT=y
 CONFIG_LV_USE_BUILTIN_MALLOC=y
 # CONFIG_LV_USE_CLIB_MALLOC is not set
 CONFIG_LV_MEM_SIZE_KILOBYTES=1024
+
+# This fork's default build: breadboard ESP32-S3 + 2.8" ILI9341 (non-IPS) LCD with XPT2046 touch,
+# Vietnamese voice prompts. Pick another board in menuconfig to override.
+CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD=y
+CONFIG_LCD_ILI9341_240X320_NO_IPS=y
+CONFIG_LANGUAGE_VI_VN=y
