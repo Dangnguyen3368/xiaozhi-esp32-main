@@ -145,7 +145,7 @@ void StudyMenu::Build(bool formula_topics) {
     lv_obj_t* grid = AddButtonGrid(panel_);
     auto add = [&](const char* text, lv_color_t color, std::function<void()> action) {
         lv_obj_t* button = AddButton(grid, text, color, std::move(action), handlers_);
-        lv_obj_set_size(button, LV_PCT(48), 46);
+        lv_obj_set_size(button, LV_PCT(48), 36);
         if (lv_obj_t* label = lv_obj_get_child(button, 0)) {
             lv_obj_set_width(label, LV_PCT(100));
             lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
@@ -195,6 +195,12 @@ void StudyMenu::Build(bool formula_topics) {
             Hide();
             if (actions_.toggle_radio) {
                 actions_.toggle_radio();
+            }
+        });
+        add("Wi-Fi", kTeal, [this]() {
+            Hide();
+            if (actions_.wifi_setup) {
+                actions_.wifi_setup();
             }
         });
         add("Cập nhật", kBlue, [this]() {
@@ -302,4 +308,21 @@ void PomodoroBadge::Update(const StudyTimer::State& state) {
     // Stay beneath full-screen overlays (figures, menu) that were opened after the badge.
     lv_obj_move_to_index(label_, 0);
     lvgl_port_unlock();
+}
+
+void MenuButton::Create(std::function<void()> on_click) {
+    lv_obj_t* button = study_ui::AddButton(lv_layer_top(), "Menu", kBlue, std::move(on_click), handlers_);
+    lv_obj_set_size(button, kWidth, kHeight);
+    lv_obj_set_style_bg_opa(button, LV_OPA_80, 0);
+    if (const lv_font_t* font = study_ui::TextFont()) {
+        lv_obj_set_style_text_font(button, font, 0);
+    }
+    lv_obj_align(button, LV_ALIGN_BOTTOM_RIGHT, -kMargin, -kMargin);
+    // Overlays opened later sit above it, so it never covers their buttons.
+    lv_obj_move_to_index(button, 0);
+}
+
+bool MenuButton::Contains(int x, int y, int screen_width, int screen_height) {
+    constexpr int kSlack = 8;  // resistive touch is off by a few pixels
+    return x >= screen_width - kWidth - kMargin - kSlack && y >= screen_height - kHeight - kMargin - kSlack;
 }
