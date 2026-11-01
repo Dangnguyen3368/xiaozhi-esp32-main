@@ -117,6 +117,9 @@ public:
 
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
+    // Sends `text` to the assistant as if the user had said it (on-screen buttons use this).
+    // Opens a conversation when idle; interrupts the reply when the assistant is speaking.
+    void AskAssistant(const std::string& text);
     bool UpgradeFirmware(const std::string& url, const std::string& version = "");
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);

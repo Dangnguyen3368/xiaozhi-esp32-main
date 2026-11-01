@@ -78,6 +78,40 @@ for p in b:
         c(p["id"]), topics.index(p["topic"]), p["level"], c(p["title"]), c(p["question"]), c(p["answer"]),
         c(h[0]), c(h[1]), c(h[2]), len(p["hints"]), c(p["solution"]), fig))
 L += ["};", "", "const size_t kPhysicsProblemCount = sizeof(kPhysicsProblems) / sizeof(kPhysicsProblems[0]);", ""]
+
+# Formula sheets: the title, a rule, then the wrapped lines; the same text goes to the model.
+from formulas import FORMULAS
+def bits_of(im):
+    w, h = im.size; px = im.load(); stride = (w + 7) // 8
+    data = bytearray(stride * h)
+    for y in range(h):
+        for x in range(w):
+            if px[x, y] == 0:
+                data[y * stride + x // 8] |= 0x80 >> (x % 8)
+    return data
+for key, title, lines in FORMULAS:
+    rows = [w for t in lines for w in wrap(t)]
+    w = MAX_W + 2
+    im = Image.new("1", (w, LINE_H * (len(rows) + 1) + 4), 1)
+    d = ImageDraw.Draw(im); d.fontmode = "1"
+    d.text((1, -1), title.upper(), font=FONT, fill=0)
+    d.line([(0, LINE_H + 1), (w - 1, LINE_H + 1)], fill=0)
+    for i, t in enumerate(rows):
+        d.text((1, LINE_H + 3 + i * LINE_H), t, font=FONT, fill=0)
+    im.save(os.path.join(FIG_DIR, "g_formula_%s.png" % key))
+    data = bits_of(im)
+    total += len(data)
+    L.append("static const uint8_t kFormulaBits_%s[] = {" % key)
+    for i in range(0, len(data), 24):
+        L.append("    " + ", ".join("0x%02x" % v for v in data[i:i + 24]) + ",")
+    L += ["};", "static const PhysicsFigure kFormulaFig_%s = {%d, %d, kFormulaBits_%s, false};" % (
+        key, im.width, im.height, key), ""]
+L.append("const PhysicsFormulaSheet kPhysicsFormulas[] = {")
+for key, title, lines in FORMULAS:
+    L.append("    {%d, %s,\n     %s,\n     &kFormulaFig_%s}," % (
+        topics.index(key), c(title), c("\n".join(lines)), key))
+L += ["};", "", "const size_t kPhysicsFormulaCount = sizeof(kPhysicsFormulas) / sizeof(kPhysicsFormulas[0]);", ""]
+print("images incl. formulas", total)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "main", "study", "physics_bank_data.cc")
 open(OUT, "w", encoding="utf-8", newline="\n").write("\n".join(L))
 print(len(b))

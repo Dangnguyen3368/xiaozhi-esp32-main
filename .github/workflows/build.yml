@@ -1,9 +1,10 @@
 name: Build Boards
 
 on:
+  # Building every board on each push to main takes hours; this fork only needs the boards a
+  # pull request touches. The robot's own firmware is built by release-ota.yml.
   push:
     branches:
-      - main
       - ci/* # for ci test
   pull_request:
     branches:

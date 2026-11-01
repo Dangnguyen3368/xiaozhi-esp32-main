@@ -7,6 +7,9 @@
 #include "study/physics_tutor.h"
 #include "xpt2046_touch.h"
 #include "figure_view.h"
+#include "study_ui.h"
+#include "study/study_timer.h"
+#include "study/firmware_update.h"
 #include "assets/lang_config.h"
 #include "button.h"
 #include "config.h"
@@ -77,6 +80,44 @@ private:
     std::unique_ptr<Xpt2046Touch> touch_;
     std::unique_ptr<InternetRadio> internet_radio_;
     FigureView figure_view_;
+    std::unique_ptr<StudyMenu> study_menu_;
+    ProgressView progress_view_;
+    PomodoroBadge pomodoro_badge_;
+
+    bool AnyOverlayShown() const {
+        return figure_view_.IsShown() || progress_view_.IsShown() || (study_menu_ && study_menu_->IsShown());
+    }
+
+    void CreateStudyMenu() {
+        auto ask = [](const char* text) { Application::GetInstance().AskAssistant(text); };
+        StudyMenu::Actions actions;
+        actions.practice = [ask]() { ask("Cho em luyện thi Vật lý"); };
+        actions.review = [ask]() { ask("Cho em ôn bài sai"); };
+        actions.toggle_pomodoro = []() {
+            auto& timer = StudyTimer::GetInstance();
+            if (timer.GetState().running) {
+                timer.Stop();
+            } else {
+                timer.Start(25, 5, true);
+            }
+        };
+        actions.formulas = [](const std::string& topic) { PhysicsTutor::GetInstance().ShowFormulas(topic); };
+        actions.progress = []() { PhysicsTutor::GetInstance().ShowProgress(); };
+        actions.toggle_radio = [this]() {
+            if (!internet_radio_) {
+                return;
+            }
+            if (internet_radio_->IsRunning()) {
+                internet_radio_->Stop();
+            } else {
+                internet_radio_->Start("chill");
+            }
+        };
+        actions.update_firmware = []() { FirmwareUpdate::GetInstance().CheckAndInstall(); };
+        actions.pomodoro_running = []() { return StudyTimer::GetInstance().GetState().running; };
+        actions.radio_running = [this]() { return internet_radio_ && internet_radio_->IsRunning(); };
+        study_menu_ = std::make_unique<StudyMenu>(std::move(actions));
+    }
 
     // Same action as the BOOT button: stop the radio if it plays, otherwise toggle chat.
     void ToggleChatOrStopRadio() {
@@ -152,13 +193,19 @@ private:
         };
         touch_ = std::make_unique<Xpt2046Touch>(SPI3_HOST, TOUCH_CS_PIN, TOUCH_IRQ_PIN,
                                                 DISPLAY_WIDTH, DISPLAY_HEIGHT, calibration);
-        // A tap closes a physics figure if one is shown, otherwise it works like the BOOT button.
+        // While a study screen is open its own buttons handle touches. Otherwise a tap works like
+        // the BOOT button and a long press opens the study menu.
         touch_->OnTap([this](int, int) {
-            if (figure_view_.IsShown()) {
-                Application::GetInstance().Schedule([this]() { figure_view_.Hide(); });
+            if (AnyOverlayShown()) {
                 return;
             }
             Application::GetInstance().Schedule([this]() { ToggleChatOrStopRadio(); });
+        });
+        touch_->OnLongPress([this]() {
+            if (AnyOverlayShown() || !study_menu_) {
+                return;
+            }
+            Application::GetInstance().Schedule([this]() { study_menu_->Show(); });
         });
         DisplayLockGuard lock(display_);
         touch_->AttachToLvgl();
@@ -260,11 +307,34 @@ private:
                 return std::string("Use action 'play' or 'stop'.");
             });
 
-        PhysicsTutor::GetInstance().SetFigureViewer(
-            [this](const PhysicsFigure* figure, const std::string& caption) {
-                figure_view_.Show(figure, caption);
+        auto& tutor = PhysicsTutor::GetInstance();
+        tutor.SetFigureViewer(
+            [this](const PhysicsFigure* figure, const std::string& caption, PhysicsTutor::ScreenKind kind) {
+                figure_view_.Show(figure, caption, kind == PhysicsTutor::ScreenKind::kProblem);
             });
-        PhysicsTutor::GetInstance().RegisterTools();
+        tutor.SetProgressViewer([this](const PhysicsTutor::ProgressReport& report) { progress_view_.Show(report); });
+        figure_view_.SetProblemActions({
+            []() { Application::GetInstance().AskAssistant("Cho em một gợi ý cho bài này"); },
+            []() { Application::GetInstance().AskAssistant("Em chịu, giảng lời giải bài này cho em"); },
+            []() { Application::GetInstance().AskAssistant("Cho em bài khác"); },
+        });
+        tutor.RegisterTools();
+
+        auto& timer = StudyTimer::GetInstance();
+        timer.SetListener([this](const StudyTimer::State& state) { pomodoro_badge_.Update(state); });
+        timer.SetMusicControl([this](bool on) {
+            if (!internet_radio_) {
+                return;
+            }
+            if (on) {
+                internet_radio_->Start("ambient");
+            } else {
+                internet_radio_->Stop();
+            }
+        });
+        timer.RegisterTool();
+        FirmwareUpdate::GetInstance().RegisterTool();
+        CreateStudyMenu();
     }
 
 public:

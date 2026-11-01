@@ -81,7 +81,7 @@ endif()
 
 # Physics exam practice (self.study.* MCP tools). A board enables it by calling
 # PhysicsTutor::GetInstance().RegisterTools() from its InitializeTools().
-list(APPEND SOURCES "study/physics_tutor.cc" "study/physics_bank_data.cc")
+list(APPEND SOURCES "study/physics_tutor.cc" "study/physics_bank_data.cc" "study/study_timer.cc" "study/firmware_update.cc")
 
 
 idf_build_get_property(build_components BUILD_COMPONENTS)

@@ -40,4 +40,16 @@ struct PhysicsProblem {
 extern const PhysicsProblem kPhysicsProblems[];
 extern const size_t kPhysicsProblemCount;
 
+// A formula sheet for one topic: the lines as text (newline-separated, for the model to read)
+// and the same lines rendered for colour screens.
+struct PhysicsFormulaSheet {
+    uint8_t topic;
+    const char* title;
+    const char* text;
+    const PhysicsFigure* image;
+};
+
+extern const PhysicsFormulaSheet kPhysicsFormulas[];
+extern const size_t kPhysicsFormulaCount;
+
 #endif  // PHYSICS_BANK_H

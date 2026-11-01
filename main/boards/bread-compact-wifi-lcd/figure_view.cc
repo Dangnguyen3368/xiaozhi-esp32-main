@@ -1,9 +1,7 @@
 #include "figure_view.h"
 
-#include "board.h"
-#include "display.h"
-#include "lvgl_font.h"
 #include "study/physics_bank.h"
+#include "study_ui.h"
 
 #include <esp_log.h>
 #include <esp_lvgl_port.h>
@@ -14,7 +12,7 @@
 
 namespace {
 constexpr int kLockTimeoutMs = 3000;
-constexpr int kMaxHeightWithHint = 240;
+constexpr int kButtonHeight = 36;
 }  // namespace
 
 void FigureView::DeleteObjects() {
@@ -23,6 +21,7 @@ void FigureView::DeleteObjects() {
         panel_ = nullptr;
     }
     image_data_.clear();
+    handlers_.clear();
     shown_ = false;
 }
 
@@ -35,7 +34,7 @@ void FigureView::Hide() {
     lvgl_port_unlock();
 }
 
-void FigureView::Show(const PhysicsFigure* figure, const std::string& caption) {
+void FigureView::Show(const PhysicsFigure* figure, const std::string& caption, bool is_problem) {
     ESP_LOGI(TAG, "Show request: %s, figure %s", caption.c_str(), figure ? "yes" : "none");
     if (figure == nullptr) {
         Hide();
@@ -52,13 +51,6 @@ void FigureView::Show(const PhysicsFigure* figure, const std::string& caption) {
     memcpy(data.data(), palette, sizeof(palette));
     memcpy(data.data() + 8, figure->bits, pixels);
 
-    const lv_font_t* font = nullptr;
-    if (auto* display = Board::GetInstance().GetDisplay(); display && display->GetTheme()) {
-        if (auto text_font = display->GetTheme()->GetTextFont()) {
-            font = text_font->font();
-        }
-    }
-
     if (!lvgl_port_lock(kLockTimeoutMs)) {
         ESP_LOGE(TAG, "Failed to lock LVGL");
         return;
@@ -74,39 +66,57 @@ void FigureView::Show(const PhysicsFigure* figure, const std::string& caption) {
     image_.data_size = image_data_.size();
     image_.data = image_data_.data();
 
-    panel_ = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(panel_, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_bg_color(panel_, lv_color_white(), 0);
-    lv_obj_set_style_bg_opa(panel_, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(panel_, 0, 0);
-    lv_obj_set_style_radius(panel_, 0, 0);
+    panel_ = study_ui::CreateOverlay();
     lv_obj_set_style_pad_all(panel_, 2, 0);
     lv_obj_set_style_pad_row(panel_, 2, 0);
-    lv_obj_set_flex_flow(panel_, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(panel_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_remove_flag(panel_, LV_OBJ_FLAG_SCROLLABLE);
+    study_ui::OnClick(panel_, [this]() { Hide(); }, handlers_);
 
-    lv_obj_t* title = lv_label_create(panel_);
-    lv_label_set_text(title, caption.c_str());
-    lv_obj_set_width(title, LV_PCT(100));
+    lv_obj_t* title = study_ui::AddLabel(panel_, caption, lv_color_black());
     lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_color(title, lv_color_black(), 0);
-    if (font != nullptr) {
-        lv_obj_set_style_text_font(title, font, 0);
-    }
 
-    lv_obj_t* image = lv_image_create(panel_);
+    // The image scrolls by itself when it is taller than the space left for it.
+    lv_obj_t* scroller = lv_obj_create(panel_);
+    lv_obj_remove_style_all(scroller);
+    lv_obj_set_width(scroller, LV_PCT(100));
+    lv_obj_set_flex_grow(scroller, 1);
+    lv_obj_set_scroll_dir(scroller, LV_DIR_VER);
+    lv_obj_set_flex_flow(scroller, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(scroller, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    study_ui::OnClick(scroller, [this]() { Hide(); }, handlers_);
+    lv_obj_t* image = lv_image_create(scroller);
     lv_image_set_src(image, &image_);
 
-    // Figures with their data lines printed underneath are nearly screen-tall; skip the hint then.
-    if (figure->height <= kMaxHeightWithHint) {
-        lv_obj_t* hint = lv_label_create(panel_);
-        lv_label_set_text(hint, "Chạm màn hình để đóng hình");
-        lv_obj_set_style_text_color(hint, lv_palette_main(LV_PALETTE_GREY), 0);
-        if (font != nullptr) {
-            lv_obj_set_style_text_font(hint, font, 0);
-        }
+    lv_obj_t* row = lv_obj_create(panel_);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, LV_PCT(100), kButtonHeight);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(row, 3, 0);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    auto add = [&](const char* text, uint32_t color, std::function<void()> action) {
+        lv_obj_t* button = study_ui::AddButton(row, text, lv_color_hex(color), std::move(action), handlers_);
+        lv_obj_set_height(button, LV_PCT(100));
+        lv_obj_set_flex_grow(button, 1);
+    };
+    if (is_problem) {
+        // Each asks the assistant, which also closes this view when it shows the next problem.
+        add("Gợi ý", 0xFB8C00, [this]() {
+            if (actions_.hint) {
+                actions_.hint();
+            }
+        });
+        add("Lời giải", 0x1E88E5, [this]() {
+            if (actions_.solution) {
+                actions_.solution();
+            }
+        });
+        add("Bài khác", 0x43A047, [this]() {
+            if (actions_.next) {
+                actions_.next();
+            }
+        });
     }
+    add("Đóng", 0x757575, [this]() { Hide(); });
 
     shown_ = true;
     lvgl_port_unlock();
