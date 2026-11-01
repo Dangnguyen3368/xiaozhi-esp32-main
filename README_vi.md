@@ -63,6 +63,17 @@ Bản firmware đầu tiên có chức năng này phải nạp bằng cáp như 
 
 Bản build trên GitHub dùng cấu hình mặc định của repo (board LCD, ILI9341 Non-IPS, tiếng Việt). Nếu mất điện lúc đang cập nhật, robot vẫn chạy bản cũ vì firmware có hai phân vùng ứng dụng.
 
+## Nghe nhạc trong máy tính
+
+Robot phát được nhạc MP3 của mày (nhạc Việt cũng được) từ máy tính cùng mạng Wi-Fi.
+
+1. Tạo thư mục, ví dụ `C:\ESPCode\nhac`, rồi chép `phat_nhac.py` và `phat-nhac.bat` từ `tools/music_server/` vào đó.
+2. Bỏ các file `.mp3` vào thư mục đó (có thư mục con cũng được).
+3. Bấm đúp `phat-nhac.bat`. Nếu Windows hỏi tường lửa thì tích "Private networks" rồi bấm Allow. Để cửa sổ đó mở trong lúc nghe.
+4. Trên robot: Menu > **Nhạc máy tính** (bấm lại lần nữa là **Bài tiếp**), hoặc nói "mở nhạc trong máy tính". Tắt nhạc bằng nút Tắt nhạc hoặc nói "tắt nhạc".
+
+Robot tự tìm máy tính qua tín hiệu UDP cổng 8766; nhạc đi qua HTTP cổng 8765. Bài được phát ngẫu nhiên, hết thì lặp lại.
+
 ## Sửa ngân hàng câu hỏi
 
 Đề bài, đáp án, gợi ý, lời giải và bảng tóm tắt đại lượng nằm trong `tools/physics-bank/*.py`. Hình vẽ nằm trong `tools/physics-bank/fig/b_<mã>.png`. Sau khi sửa, chạy:

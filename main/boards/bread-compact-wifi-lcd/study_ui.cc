@@ -128,6 +128,7 @@ void StudyMenu::Build(bool formula_topics) {
     // Read the toggle states before taking the LVGL lock.
     const bool pomodoro = actions_.pomodoro_running && actions_.pomodoro_running();
     const bool radio = actions_.radio_running && actions_.radio_running();
+    const bool local_music = actions_.local_music_running && actions_.local_music_running();
 
     if (!lvgl_port_lock(kLockTimeoutMs)) {
         ESP_LOGE(TAG, "Failed to lock LVGL");
@@ -195,6 +196,12 @@ void StudyMenu::Build(bool formula_topics) {
             Hide();
             if (actions_.toggle_radio) {
                 actions_.toggle_radio();
+            }
+        });
+        add(local_music ? "Bài tiếp" : "Nhạc máy tính", kOrange, [this]() {
+            Hide();
+            if (actions_.local_music) {
+                actions_.local_music();
             }
         });
         add("Wi-Fi", kTeal, [this]() {
