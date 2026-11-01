@@ -4,7 +4,7 @@
 #include "application.h"
 #include "board.h"
 #include "display.h"
-#include "settings.h"
+#include "pc/local_pc.h"
 
 #include <esp_audio_types.h>
 #include <esp_ae_rate_cvt.h>
@@ -12,8 +12,6 @@
 #include <esp_http_client.h>
 #include <esp_log.h>
 #include <esp_mp3_dec.h>
-#include <lwip/inet.h>
-#include <lwip/sockets.h>
 
 #include <algorithm>
 #include <cmath>
@@ -28,12 +26,10 @@ constexpr InternetRadio::Station kStations[] = {
     {"chill", "Groove Salad", "https://ice1.somafm.com/groovesalad-128-mp3"},
     {"ambient", "Drone Zone", "https://ice1.somafm.com/dronezone-128-mp3"},
     {"space", "Deep Space One", "https://ice1.somafm.com/deepspaceone-128-mp3"},
-    // The user's own MP3 folder, served by tools/music_server/phat_nhac.py on their computer.
+    // The user's own MP3 folder, served by tools/music_server/robot_may_tinh.py on their computer.
     {InternetRadio::kLocalStation, "Nhạc máy tính", nullptr},
 };
-// phat_nhac.py broadcasts "XIAOZHI_MUSIC <http port>" on this UDP port every 2 seconds.
-constexpr uint16_t kDiscoveryPort = 8766;
-constexpr int kDiscoverySeconds = 8;
+
 constexpr size_t kInputBufferSize = 12 * 1024;
 constexpr size_t kReadBufferSize = 2048;
 constexpr size_t kDecodedBufferSize = 16 * 1024;
@@ -136,52 +132,7 @@ bool InternetRadio::IsRunning() const {
 }
 
 bool InternetRadio::FindLocalServer() {
-    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (sock >= 0) {
-        int yes = 1;
-        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-        setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &yes, sizeof(yes));
-        timeval timeout = {.tv_sec = 1, .tv_usec = 0};
-        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-        sockaddr_in local = {};
-        local.sin_family = AF_INET;
-        local.sin_port = htons(kDiscoveryPort);
-        local.sin_addr.s_addr = htonl(INADDR_ANY);
-        if (bind(sock, reinterpret_cast<sockaddr*>(&local), sizeof(local)) == 0) {
-            char buffer[64];
-            for (int second = 0; second < kDiscoverySeconds && !stop_requested_.load(); ++second) {
-                sockaddr_in from = {};
-                socklen_t from_len = sizeof(from);
-                const int len = recvfrom(sock, buffer, sizeof(buffer) - 1, 0,
-                                         reinterpret_cast<sockaddr*>(&from), &from_len);
-                if (len <= 0) {
-                    continue;
-                }
-                buffer[len] = '\0';
-                int port = 0;
-                if (sscanf(buffer, "XIAOZHI_MUSIC %d", &port) != 1 || port <= 0 || port > 65535) {
-                    continue;
-                }
-                char ip[16];
-                inet_ntoa_r(from.sin_addr, ip, sizeof(ip));
-                local_base_url_ = std::string("http://") + ip + ":" + std::to_string(port);
-                ESP_LOGI(kTag, "Music server found at %s", local_base_url_.c_str());
-                Settings settings("radio", true);
-                settings.SetString("local_url", local_base_url_);
-                break;
-            }
-        } else {
-            ESP_LOGW(kTag, "Cannot listen on UDP %u", kDiscoveryPort);
-        }
-        close(sock);
-    }
-    if (local_base_url_.empty()) {
-        Settings settings("radio");
-        local_base_url_ = settings.GetString("local_url");
-        if (!local_base_url_.empty()) {
-            ESP_LOGW(kTag, "No announcement; trying last music server %s", local_base_url_.c_str());
-        }
-    }
+    local_base_url_ = local_pc::Find(8, &stop_requested_);
     return !local_base_url_.empty();
 }
 
@@ -282,7 +233,7 @@ void InternetRadio::Run() {
         if (!FindLocalServer()) {
             ESP_LOGW(kTag, "Music server on the computer not found");
             if (auto* display = Board::GetInstance().GetDisplay()) {
-                display->ShowNotification("Không thấy máy tính phát nhạc. Bật phat-nhac.bat chưa?", 6000);
+                display->ShowNotification("Không thấy máy tính phát nhạc. Bật robot-may-tinh.bat chưa?", 6000);
             }
             Application::GetInstance().SetRadioPlaybackActive(false);
             task_handle_ = nullptr;

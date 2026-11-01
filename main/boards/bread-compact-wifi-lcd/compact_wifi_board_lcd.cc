@@ -4,6 +4,7 @@
 #include "system_reset.h"
 #include "application.h"
 #include "audio/internet_radio.h"
+#include "pc/pc_control.h"
 #include "study/physics_tutor.h"
 #include "xpt2046_touch.h"
 #include "figure_view.h"
@@ -381,6 +382,7 @@ private:
         });
         timer.RegisterTool();
         FirmwareUpdate::GetInstance().RegisterTool();
+        PcControl::GetInstance().RegisterTool();
         CreateStudyMenu();
         // Created once the main loop runs: building the button looks up the theme font through
         // Board::GetInstance(), which must not be called while the board is still being built.

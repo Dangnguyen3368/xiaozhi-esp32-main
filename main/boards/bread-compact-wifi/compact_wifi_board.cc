@@ -6,6 +6,7 @@
 #include "system_reset.h"
 #include "application.h"
 #include "audio/internet_radio.h"
+#include "pc/pc_control.h"
 #include "study/physics_tutor.h"
 #include "study/study_timer.h"
 #include "button.h"
@@ -233,6 +234,7 @@ private:
                 }
                 return std::string("Use action 'play', 'next' or 'stop'.");
             });
+        PcControl::GetInstance().RegisterTool();
 
         McpServer::GetInstance().AddTool(
             "self.screen.switch_face",

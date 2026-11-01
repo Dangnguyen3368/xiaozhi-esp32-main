@@ -19,3 +19,7 @@ main/mmap_generate_emoji.h
 mmap_generate_*.h
 .clangd
 build-*/
+
+# Robot computer companion: pairing tokens and the user's music stay local
+tools/music_server/robot_token.txt
+tools/music_server/**/*.mp3
