@@ -818,7 +818,7 @@ void PhysicsTutor::RegisterTools() {
             }
             cJSON* json = cJSON_CreateObject();
             if (review_minute_ >= 0) {
-                char text[8];
+                char text[16];
                 snprintf(text, sizeof(text), "%02d:%02d", review_minute_ / 60, review_minute_ % 60);
                 cJSON_AddStringToObject(json, "reminder_time", text);
             } else {
