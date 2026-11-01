@@ -195,7 +195,7 @@ void PcControl::RegisterTool() {
         "with Vietnamese diacritics and normal punctuation; do not add your own words); `key` "
         "presses keys given in `text`, e.g. enter, tab, backspace, delete, up, down, left, right, "
         "home, end, esc, ctrl+s, ctrl+z, ctrl+a, ctrl+c, ctrl+v, ctrl+b, ctrl+n, alt+tab, alt+f4, "
-        "win; several keys separated by spaces are pressed in turn (\"tab tab enter\"). In Excel, "
+        "win (alt+f4 closes the active window, e.g. when the user says close Word); several keys separated by spaces are pressed in turn (\"tab tab enter\"). In Excel, "
         "type a cell's value then press tab (next column) or enter (next row). `open` starts an "
         "app named in `text`: word, excel, powerpoint, notepad, calculator, browser. Never type "
         "passwords or anything the user did not ask for.",
