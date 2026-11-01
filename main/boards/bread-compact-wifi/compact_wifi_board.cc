@@ -202,7 +202,10 @@ private:
             "Play or stop Internet radio on the device speaker. Only use when the user explicitly "
             "asks to listen to radio or music radio. Stations (music only): chill (Groove Salad, "
             "downtempo), ambient (Drone Zone, calm ambient), space (Deep Space One, ambient "
-            "electronic). Use action `play` with a station id to start it and `stop` to stop. "
+            "electronic), local (Nhạc máy tính: the user's own songs, including Vietnamese music, "
+            "played from their computer; use it when they ask for their own or Vietnamese music). "
+            "Use action `play` with a station id to start it, `next` to skip to the next song "
+            "(local only) and `stop` to stop. "
             "Mochi shows live audio bars.",
             PropertyList({Property("action", kPropertyTypeString),
                           Property("station", kPropertyTypeString, std::string("chill"))}),
@@ -218,11 +221,17 @@ private:
                     }
                     return "Starting " + std::string(internet_radio_->station_name()) + " on the device speaker.";
                 }
+                if (action == "next") {
+                    if (!internet_radio_->NextTrack()) {
+                        return std::string("Skipping only works while playing music from the computer (station local).");
+                    }
+                    return std::string("Skipped to the next song.");
+                }
                 if (action == "stop") {
                     internet_radio_->Stop();
                     return std::string("Stopping Internet radio.");
                 }
-                return std::string("Use action 'play' or 'stop'.");
+                return std::string("Use action 'play', 'next' or 'stop'.");
             });
 
         McpServer::GetInstance().AddTool(

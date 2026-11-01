@@ -26,11 +26,13 @@ public:
         std::function<void(const std::string& topic)> formulas;
         std::function<void()> progress;
         std::function<void()> toggle_radio;
+        std::function<void()> local_music;  // play the computer's music, or skip when already playing
         std::function<void()> update_firmware;
         std::function<void()> wifi_setup;
         // Labels reflect what the toggles will do.
         std::function<bool()> pomodoro_running;
         std::function<bool()> radio_running;
+        std::function<bool()> local_music_running;
     };
 
     explicit StudyMenu(Actions actions) : actions_(std::move(actions)) {}
