@@ -27,13 +27,21 @@ public:
     // Shows the image with a caption, replacing anything already shown. nullptr hides it.
     // Problems get the quick-action buttons; other images only a close button.
     void Show(const PhysicsFigure* figure, const std::string& caption, bool is_problem);
+    // Shows a text card (a hint or the solution of the problem on screen) with a button back to
+    // the problem.
+    void ShowNote(const std::string& title, const std::string& text);
     void Hide();
     bool IsShown() const { return shown_.load(); }
 
 private:
     void DeleteObjects();
 
+    void BuildNote(const std::string& title, const std::string& text);
+
     ProblemActions actions_;
+    // The last problem shown, for the "Xem đề" button of a note.
+    const PhysicsFigure* last_figure_ = nullptr;
+    std::string last_caption_;
     std::vector<std::unique_ptr<std::function<void()>>> handlers_;
     lv_obj_t* panel_ = nullptr;
     lv_image_dsc_t image_ = {};

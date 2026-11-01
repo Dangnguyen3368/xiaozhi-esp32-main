@@ -474,8 +474,39 @@ void PhysicsTutor::SetFigureViewer(FigureViewer viewer) {
     g_figures_on_screen = static_cast<bool>(figure_viewer_);
 }
 
+bool PhysicsTutor::NextHintOnScreen(std::string& title, std::string& text) {
+    if (screen_problem_ < 0) {
+        return false;
+    }
+    const auto& p = kPhysicsProblems[screen_problem_];
+    if (p.hint_count == 0) {
+        title = std::string("Bài ") + p.id;
+        text = "Bài này không có gợi ý. Bấm Lời giải để xem cách làm.";
+        return true;
+    }
+    const int n = screen_hints_ % p.hint_count;
+    screen_hints_++;
+    title = std::string("Gợi ý ") + std::to_string(n + 1) + "/" + std::to_string(p.hint_count) + " · Bài " + p.id;
+    text = p.hints[n];
+    return true;
+}
+
+bool PhysicsTutor::SolutionOnScreen(std::string& title, std::string& text) {
+    if (screen_problem_ < 0) {
+        return false;
+    }
+    const auto& p = kPhysicsProblems[screen_problem_];
+    title = std::string("Lời giải · Bài ") + p.id;
+    text = std::string("Đáp số: ") + p.answer + "\n\n" + p.solution;
+    return true;
+}
+
 void PhysicsTutor::ShowOnScreen(size_t index) {
     const auto& p = kPhysicsProblems[index];
+    if (screen_problem_ != static_cast<int>(index)) {
+        screen_problem_ = static_cast<int>(index);
+        screen_hints_ = 0;
+    }
     const std::string text = std::string("Bài ") + p.id + " · " + kTopicNames[p.topic] + " · " +
                              kLevelNames[p.level];
     if (figure_viewer_) {

@@ -54,6 +54,12 @@ public:
     // Shows the formula sheet of a topic key (co, nhiet, dien, quang); false if unknown.
     bool ShowFormulas(const std::string& topic);
 
+    // For the quick buttons under the problem on screen: the next hint (cycling back to the
+    // first after the last) or the answer with the full solution. False when no problem was
+    // shown yet.
+    bool NextHintOnScreen(std::string& title, std::string& text);
+    bool SolutionOnScreen(std::string& title, std::string& text);
+
     // A wrong problem waiting for spaced review: due again on `due_day` (days since the
     // epoch, local time). Each correct review moves it up a box and spaces it further apart;
     // after the last box it leaves the review list.
@@ -93,6 +99,8 @@ private:
     FigureViewer figure_viewer_;
     ProgressViewer progress_viewer_;
     size_t current_ = 0;
+    int screen_problem_ = -1;  // bank index of the problem on screen
+    int screen_hints_ = 0;     // hints already shown for it with the hint button
     bool loaded_ = false;
 
     // Daily review reminder: minutes after local midnight, or -1 when off.
