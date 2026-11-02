@@ -142,6 +142,11 @@ void StudyMenu::BuildComputer(lv_obj_t* grid,
             actions_.start_dictation();
         }
     });
+    add("Chụp đề (đ.thoại)", kGreen, [this]() {
+        if (actions_.show_phone_photo) {
+            actions_.show_phone_photo();
+        }
+    });
     add("Mở Word", kBlue, command("open", "word"));
     add("Mở Excel", kGreen, command("open", "excel"));
     add("Mở Notepad", kTeal, command("open", "notepad"));

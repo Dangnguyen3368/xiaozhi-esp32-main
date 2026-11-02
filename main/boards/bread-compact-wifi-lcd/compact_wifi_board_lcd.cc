@@ -5,6 +5,7 @@
 #include "application.h"
 #include "audio/internet_radio.h"
 #include "pc/pc_control.h"
+#include "pc/photo_solver.h"
 #include "study/physics_tutor.h"
 #include "xpt2046_touch.h"
 #include "figure_view.h"
@@ -142,6 +143,15 @@ private:
             PcControl::GetInstance().RunAsync(action, text);
         };
         actions.pc_paired = []() { return PcControl::GetInstance().IsPaired(); };
+        actions.show_phone_photo = []() {
+            auto* display = Board::GetInstance().GetDisplay();
+            const std::string url = photo_solver::PhoneUrl();
+            if (url.empty()) {
+                display->ShowNotification("Bật robot-may-tinh.bat trên máy tính trước", 6000);
+            } else {
+                display->ShowNotification("Điện thoại mở: " + url + " rồi nói \"giải bài vừa chụp\"", 15000);
+            }
+        };
         actions.start_dictation = []() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateIdle) {
@@ -393,6 +403,7 @@ private:
         timer.RegisterTool();
         FirmwareUpdate::GetInstance().RegisterTool();
         PcControl::GetInstance().RegisterTool();
+        photo_solver::RegisterTool();
         CreateStudyMenu();
         // Created once the main loop runs: building the button looks up the theme font through
         // Board::GetInstance(), which must not be called while the board is still being built.

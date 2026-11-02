@@ -3,6 +3,8 @@
 Chạy: python robot_may_tinh.py [thư mục nhạc]   (mặc định: thư mục chứa file này)
 
 Điều khiển máy tính: robot gõ chữ mày đọc vào Word, Excel..., bấm phím và mở vài ứng dụng.
+Chụp đề: điện thoại cùng Wi-Fi mở http://<máy tính>:8765/chup, chụp ảnh gửi lên, robot lấy
+ảnh đó nhờ AI đọc đề và giảng bài.
 Chỉ robot đã ghép mã (mã 4 số hiện trong cửa sổ này) mới điều khiển được.
 
 Robot nghe được máy tính qua tín hiệu UDP phát mỗi 2 giây ở cổng 8766, rồi mở
@@ -36,6 +38,57 @@ state_lock = threading.Lock()
 stream_generation = 0  # mỗi lần robot mở luồng mới thì luồng cũ dừng lại
 skip_requested = False
 now_playing = ""
+
+
+# ---------------------------------------------------------------- ảnh chụp từ điện thoại
+
+MAX_PHOTO_BYTES = 4 * 1024 * 1024
+PHOTO_MAX_AGE = 30 * 60  # giây: ảnh cũ hơn thì robot coi như chưa có ảnh mới
+latest_photo = None  # (thời điểm, bytes JPEG)
+
+PHONE_PAGE = """<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chụp đề cho robot</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#f4f6fb;color:#1c2333;text-align:center}
+h1{font-size:22px;margin:8px 0 4px}
+p{margin:6px 0;color:#4a5468}
+label{display:block;margin:18px auto;max-width:360px;padding:22px;border-radius:16px;background:#2f6fed;
+color:#fff;font-size:22px;font-weight:600}
+input{display:none}
+img{max-width:100%;max-height:55vh;border-radius:12px;margin-top:12px}
+#st{font-size:18px;font-weight:600;margin-top:12px}
+</style></head><body>
+<h1>Chụp đề cho robot</h1>
+<p>Chụp rõ, đủ sáng, đề nằm ngang màn hình.</p>
+<label>&#128247; Chụp đề<input id="f" type="file" accept="image/*" capture="environment"></label>
+<div id="st"></div><img id="pv" alt="">
+<script>
+const st=document.getElementById('st'),pv=document.getElementById('pv');
+document.getElementById('f').onchange=e=>{
+  const file=e.target.files[0]; if(!file) return;
+  st.textContent='Đang thu nhỏ ảnh...';
+  const img=new Image();
+  img.onload=()=>{
+    const k=Math.min(1,1280/Math.max(img.width,img.height));
+    const c=document.createElement('canvas');
+    c.width=Math.round(img.width*k); c.height=Math.round(img.height*k);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    pv.src=c.toDataURL('image/jpeg',0.8);
+    c.toBlob(b=>{
+      st.textContent='Đang gửi...';
+      fetch('/photo',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:b})
+        .then(r=>r.ok?r.text():Promise.reject(r.status))
+        .then(()=>{st.textContent='Đã gửi! Giờ nói với robot: "giải bài vừa chụp".'})
+        .catch(x=>{st.textContent='Gửi lỗi ('+x+'). Thử lại.'});
+    },'image/jpeg',0.85);
+    URL.revokeObjectURL(img.src);
+  };
+  img.onerror=()=>{st.textContent='Không đọc được ảnh này.'};
+  img.src=URL.createObjectURL(file);
+};
+</script></body></html>"""
 
 
 # ---------------------------------------------------------------- ghép robot
@@ -330,6 +383,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/ping"):
             self.reply(200, "XIAOZHI_MUSIC")
             return
+        if self.path.startswith("/chup"):
+            self.reply(200, PHONE_PAGE, "text/html; charset=utf-8")
+            return
+        if self.path.startswith("/photo"):
+            self.send_photo()
+            return
         if not self.path.startswith("/stream"):
             self.reply(404, "not found")
             return
@@ -379,8 +438,42 @@ class Handler(BaseHTTPRequestHandler):
                     return True
                 self.wfile.write(data)
 
+    def send_photo(self):
+        if self.headers.get("X-Robot-Token", "") not in tokens:
+            self.reply_json(403, {"error": "Robot is not paired."})
+            return
+        with state_lock:
+            photo = latest_photo
+        if photo is None or time.time() - photo[0] > PHOTO_MAX_AGE:
+            self.reply_json(404, {"error": "Chưa có ảnh mới."})
+            return
+        print(f"Robot {self.client_address[0]} lấy ảnh ({len(photo[1]) // 1024} KB)")
+        self.send_response(200)
+        self.send_header("Content-Type", "image/jpeg")
+        self.send_header("Content-Length", str(len(photo[1])))
+        self.end_headers()
+        self.wfile.write(photo[1])
+
+    def receive_photo(self, length):
+        global latest_photo
+        if length <= 0 or length > MAX_PHOTO_BYTES:
+            self.reply(413, "Ảnh quá lớn.")
+            return
+        data = self.rfile.read(length)
+        if not data.startswith(b"\xff\xd8"):
+            self.reply(400, "Không phải ảnh JPEG.")
+            return
+        with state_lock:
+            latest_photo = (time.time(), data)
+        print(f"Đã nhận ảnh từ điện thoại {self.client_address[0]} ({len(data) // 1024} KB). "
+              "Nói với robot: 'giải bài vừa chụp'.")
+        self.reply(200, "ok")
+
     def do_POST(self):
         length = int(self.headers.get("Content-Length") or 0)
+        if self.path.startswith("/photo"):
+            self.receive_photo(length)
+            return
         if length > 16384:
             self.reply_json(413, {"error": "Request too large."})
             return
@@ -468,6 +561,7 @@ def main():
     if tokens:
         print(f"Điều khiển máy tính: đã ghép {len(tokens)} robot.")
     print(f"Mã ghép robot: {pair_code}  (nói với robot: 'ghép máy tính, mã {pair_code}')")
+    print(f"Chụp đề bằng điện thoại (cùng Wi-Fi): mở http://{local_ip()}:{HTTP_PORT}/chup")
     print("Nếu Windows hỏi tường lửa: tích 'Private networks' rồi bấm Allow.")
     print("Đóng cửa sổ này để tắt.")
     try:

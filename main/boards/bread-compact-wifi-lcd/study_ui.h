@@ -33,6 +33,7 @@ public:
         std::function<void(const std::string& action, const std::string& text)> pc_command;
         std::function<bool()> pc_paired;
         std::function<void()> start_dictation;  // start listening so the user can dictate
+        std::function<void()> show_phone_photo;  // show where the phone sends exam photos
         // Labels reflect what the toggles will do.
         std::function<bool()> pomodoro_running;
         std::function<bool()> radio_running;
