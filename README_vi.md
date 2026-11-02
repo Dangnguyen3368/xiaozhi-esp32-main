@@ -79,7 +79,7 @@ Robot tự tìm máy tính qua tín hiệu UDP cổng 8766; nhạc đi qua HTTP 
 1. Lần đầu: cửa sổ `robot-may-tinh.bat` hiện "Mã ghép robot: 1234". Nói với robot "ghép máy tính, mã 1234". Ghép một lần là nhớ (mã lưu trong `robot_token.txt`, đừng gửi file này cho ai).
 2. Mở Word hoặc Excel (hoặc nói "mở Word"), bấm chuột vào chỗ cần gõ, rồi đọc: "gõ vào máy tính: Hôm nay em học bài Định luật Ôm." Robot gõ đúng chữ mày đọc, có dấu.
 3. Các lệnh khác: "xuống dòng", "bấm Tab", "lưu lại" (Ctrl+S), "hoàn tác" (Ctrl+Z), "mở Excel"... Trong Excel: đọc giá trị một ô rồi nói "sang ô bên" (Tab) hoặc "xuống dòng" (Enter).
-4. Nếu chữ ra bị sai dấu thì tắt Unikey/EVKey (chuyển sang E) trong lúc robot gõ.
+4. Robot dán chữ qua clipboard (rồi trả lại clipboard cũ) nên không bị Unikey/EVKey làm sai dấu. Màn robot hiện "Đã gõ: ..." để mày xem nó nghe đúng chưa; sai thì nói "hoàn tác" (Ctrl+Z) rồi đọc lại.
 
 Trong Menu có trang **Máy tính** để bấm nhanh: Đọc để gõ, Mở Word/Excel/Notepad, Xuống dòng, Tab, Xóa lùi, Hoàn tác, Lưu, Đóng cửa sổ (Alt+F4), và **Ghép máy** (nhập mã 4 số bằng bàn phím trên màn) nếu không muốn đọc mã.
 

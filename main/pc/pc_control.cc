@@ -31,6 +31,18 @@ std::string ToJson(cJSON* json) {
     return text;
 }
 
+// At most `max_bytes` of UTF-8, cut on a character boundary, with "..." when shortened.
+std::string Shorten(const std::string& text, size_t max_bytes) {
+    if (text.size() <= max_bytes) {
+        return text;
+    }
+    size_t end = max_bytes;
+    while (end > 0 && (static_cast<unsigned char>(text[end]) & 0xC0) == 0x80) {
+        --end;
+    }
+    return text.substr(0, end) + "...";
+}
+
 // The computer replies {"ok": true, "message": "..."} or {"error": "..."}.
 std::string Describe(const std::string& reply) {
     JsonPtr json(cJSON_Parse(reply.c_str()));
@@ -152,7 +164,14 @@ std::string PcControl::Run(const std::string& action, const std::string& text) {
     if (reply.starts_with("ERROR:")) {
         return reply;
     }
-    return Describe(reply);
+    const std::string result = Describe(reply);
+    if (action == "type" && !result.starts_with("ERROR:")) {
+        // Show what was typed so speech recognition mistakes are easy to spot.
+        if (auto* display = Board::GetInstance().GetDisplay()) {
+            display->ShowNotification("Đã gõ: " + Shorten(text, 90), 6000);
+        }
+    }
+    return result;
 }
 
 namespace {
