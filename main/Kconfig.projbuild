@@ -964,9 +964,9 @@ config USE_AFE_NOISE_SUPPRESSION
     default n
     depends on USE_AUDIO_PROCESSOR
     help
-        Adds the AFE's WebRTC noise suppression (no model needed) and automatic gain
-        control to the uplink, so speech sent to the server is cleaner and louder.
-        If the AFE cannot be created with them, it falls back to the plain setup.
+        Runs esp-sr's standalone WebRTC noise suppression and automatic gain control on
+        the microphone audio sent to the server (the full-duplex AFE only does VAD), so
+        speech is cleaner and louder. 16 kHz input only.
 
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
