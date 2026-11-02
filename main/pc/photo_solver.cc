@@ -25,8 +25,13 @@ constexpr int kPort = 8080;
 constexpr size_t kMaxPhotoBytes = 1536 * 1024;
 constexpr int64_t kMaxPhotoAgeUs = 30LL * 60 * 1000 * 1000;
 constexpr char kDefaultQuestion[] =
-    "Đây là ảnh chụp một đề bài. Hãy chép lại đề, rồi giải chi tiết từng bước bằng tiếng Việt, "
-    "ghi rõ công thức và đáp số.";
+    "Ảnh là một đề bài tập (thường là Vật lý THCS). Giải ngay, không chép lại đề: liệt kê dữ "
+    "kiện ngắn gọn, rồi giải từng bước, ghi rõ công thức và đáp số.";
+// The explain service's own instructions are Chinese, so it answers in Chinese unless told
+// clearly; the robot's font has no Chinese glyphs either.
+constexpr char kLanguageRule[] =
+    "\nBẮT BUỘC: chỉ trả lời bằng tiếng Việt có dấu, tuyệt đối không dùng tiếng Trung hay tiếng "
+    "Anh. Answer ONLY in Vietnamese. 请只用越南语回答，不要用中文。";
 
 constexpr char kPhonePage[] = R"HTML(<!doctype html>
 <html lang="vi"><head><meta charset="utf-8">
@@ -255,7 +260,7 @@ std::string Explain(const char* jpeg, size_t size, const std::string& question) 
     std::string head;
     head += "--" + boundary + "\r\n";
     head += "Content-Disposition: form-data; name=\"question\"\r\n\r\n";
-    head += question + "\r\n";
+    head += question + kLanguageRule + "\r\n";
     head += "--" + boundary + "\r\n";
     head += "Content-Disposition: form-data; name=\"file\"; filename=\"phone.jpg\"\r\n";
     head += "Content-Type: image/jpeg\r\n\r\n";
@@ -305,7 +310,8 @@ void RegisterTool() {
         "đề button) and taps Chụp đề. Use this when the user says giải bài vừa chụp, xem ảnh vừa "
         "chụp, đọc đề trong ảnh, or asks how to send a photo. Leave `question` empty to read and "
         "solve the problem in the photo. Returns the vision AI's answer; explain it to the user in "
-        "Vietnamese, step by step. The robot already solves each uploaded photo and shows the "
+        "Vietnamese, step by step, from this answer: never ask the user to read the problem aloud, "
+        "the photo already has it. The robot already solves each uploaded photo and shows the "
         "answer on its screen, so this returns that answer quickly. If it says there is no new "
         "photo, tell the user the address.",
         PropertyList({Property("question", kPropertyTypeString, std::string(""))}),
