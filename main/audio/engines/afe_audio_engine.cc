@@ -1,5 +1,12 @@
 #include "afe_audio_engine.h"
 
+#if CONFIG_USE_AFE_NOISE_SUPPRESSION
+#include <esp_agc.h>
+#include <esp_ns.h>
+#endif
+
+#include <algorithm>
+
 #include <cassert>
 #include <cstring>
 #include <sstream>
@@ -25,6 +32,14 @@ AfeAudioEngine::AfeAudioEngine() { event_group_ = xEventGroupCreate(); }
 
 AfeAudioEngine::~AfeAudioEngine() {
     custom_wake_word_.reset();
+#if CONFIG_USE_AFE_NOISE_SUPPRESSION
+    if (ns_handle_ != nullptr) {
+        ns_destroy(ns_handle_);
+    }
+    if (agc_handle_ != nullptr) {
+        esp_agc_close(agc_handle_);
+    }
+#endif
     if (afe_data_ != nullptr) {
         afe_iface_->destroy(afe_data_);
     }
@@ -177,16 +192,6 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
     }
     afe_config->agc_init = false;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
-#if CONFIG_USE_AFE_NOISE_SUPPRESSION
-    // WebRTC noise suppression needs no model; AGC lifts quiet speech for recognition.
-    afe_config->ns_init = true;
-    afe_config->ns_model_name = nullptr;
-    afe_config->afe_ns_mode = AFE_NS_MODE_WEBRTC;
-    afe_config->agc_init = true;
-    afe_config->agc_mode = AFE_AGC_MODE_WEBRTC;
-    afe_config->agc_compression_gain_db = 9;
-    afe_config->agc_target_level_dbfs = 3;
-#endif
 
     ESP_LOGI(TAG, "Before AFE create: free=%u min=%u largest=%u",
              heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
@@ -196,19 +201,6 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
     if (afe_iface_ != nullptr) {
         afe_data_ = afe_iface_->create_from_config(afe_config);
     }
-#if CONFIG_USE_AFE_NOISE_SUPPRESSION
-    if (afe_iface_ == nullptr || afe_data_ == nullptr) {
-        ESP_LOGW(TAG, "AFE with noise suppression/AGC failed; retrying without them");
-        afe_config->ns_init = false;
-        afe_config->agc_init = false;
-        afe_iface_ = esp_afe_handle_from_config(afe_config);
-        if (afe_iface_ != nullptr) {
-            afe_data_ = afe_iface_->create_from_config(afe_config);
-        }
-    } else {
-        ESP_LOGI(TAG, "AFE noise suppression (WebRTC) and AGC enabled");
-    }
-#endif
     afe_config_free(afe_config);
 
     if (afe_iface_ == nullptr || afe_data_ == nullptr) {
@@ -493,6 +485,49 @@ void AfeAudioEngine::HandleWakeWordResult(const afe_fetch_result_t* result) {
     }
 }
 
+#if CONFIG_USE_AFE_NOISE_SUPPRESSION
+// The full-duplex AFE only runs VAD (and WakeNet), so the uplink gets the standalone WebRTC
+// noise suppression and AGC from esp-sr, applied in 10 ms blocks before encoding.
+void AfeAudioEngine::CleanUplink(std::vector<int16_t>& frame) {
+    constexpr int kSampleRate = 16000;
+    constexpr size_t kBlock = kSampleRate / 100;  // 10 ms
+    if (!uplink_cleaner_ready_) {
+        uplink_cleaner_ready_ = true;
+        ns_handle_ = ns_pro_create(10, 1, kSampleRate);  // mode 1: medium suppression
+        agc_handle_ = esp_agc_open(AGC_MODE_2, kSampleRate);
+        if (agc_handle_ != nullptr) {
+            set_agc_config(agc_handle_, 9, 1, 3);  // +9 dB max, limiter on, target -3 dBFS
+        }
+        ESP_LOGI(TAG, "Uplink noise suppression %s, AGC %s", ns_handle_ ? "on" : "failed",
+                 agc_handle_ ? "on" : "failed");
+    }
+    if (ns_handle_ == nullptr && agc_handle_ == nullptr) {
+        return;
+    }
+    int16_t block[kBlock];
+    for (size_t offset = 0; offset + kBlock <= frame.size(); offset += kBlock) {
+        int16_t* samples = frame.data() + offset;
+        if (ns_handle_ != nullptr) {
+            ns_process(ns_handle_, samples, block);
+            std::copy(block, block + kBlock, samples);
+        }
+        if (agc_handle_ != nullptr) {
+            esp_agc_process(agc_handle_, samples, block, kBlock, kSampleRate);
+            std::copy(block, block + kBlock, samples);
+        }
+    }
+}
+#endif
+
+void AfeAudioEngine::EmitFrame(std::vector<int16_t>&& frame) {
+#if CONFIG_USE_AFE_NOISE_SUPPRESSION
+    if (codec_ != nullptr && codec_->input_sample_rate() == 16000) {
+        CleanUplink(frame);
+    }
+#endif
+    output_callback_(std::move(frame));
+}
+
 void AfeAudioEngine::HandleVoiceResult(const afe_fetch_result_t* result) {
     if (output_reset_pending_.exchange(false)) {
         output_buffer_.clear();
@@ -514,12 +549,11 @@ void AfeAudioEngine::HandleVoiceResult(const afe_fetch_result_t* result) {
     output_buffer_.insert(output_buffer_.end(), result->data, result->data + samples);
     while (output_buffer_.size() >= static_cast<size_t>(frame_samples_)) {
         if (output_buffer_.size() == static_cast<size_t>(frame_samples_)) {
-            output_callback_(std::move(output_buffer_));
+            EmitFrame(std::move(output_buffer_));
             output_buffer_.clear();
             output_buffer_.reserve(frame_samples_);
         } else {
-            output_callback_(std::vector<int16_t>(output_buffer_.begin(),
-                                                  output_buffer_.begin() + frame_samples_));
+            EmitFrame(std::vector<int16_t>(output_buffer_.begin(), output_buffer_.begin() + frame_samples_));
             output_buffer_.erase(output_buffer_.begin(), output_buffer_.begin() + frame_samples_);
         }
     }
@@ -541,8 +575,7 @@ void AfeAudioEngine::OutputRawAudio(const std::vector<int16_t>& data) {
         }
     }
     while (output_buffer_.size() >= static_cast<size_t>(frame_samples_)) {
-        output_callback_(
-            std::vector<int16_t>(output_buffer_.begin(), output_buffer_.begin() + frame_samples_));
+        EmitFrame(std::vector<int16_t>(output_buffer_.begin(), output_buffer_.begin() + frame_samples_));
         output_buffer_.erase(output_buffer_.begin(), output_buffer_.begin() + frame_samples_);
     }
 }

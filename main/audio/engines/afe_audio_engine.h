@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <esp_afe_sr_models.h>
+#include <sdkconfig.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <freertos/task.h>
@@ -86,6 +87,14 @@ private:
     std::string last_detected_wake_word_;
     std::vector<int16_t> input_buffer_;
     std::vector<int16_t> output_buffer_;
+    // Sends one encoder frame, after noise suppression/AGC when enabled.
+    void EmitFrame(std::vector<int16_t>&& frame);
+#if CONFIG_USE_AFE_NOISE_SUPPRESSION
+    void CleanUplink(std::vector<int16_t>& frame);
+    bool uplink_cleaner_ready_ = false;
+    void* ns_handle_ = nullptr;
+    void* agc_handle_ = nullptr;
+#endif
     std::mutex input_buffer_mutex_;
 
     std::function<void(const std::string&)> wake_word_detected_callback_;
