@@ -1,6 +1,7 @@
 #include "pc_control.h"
 
 #include "local_pc.h"
+#include "asr_filter.h"
 #include "board.h"
 #include "display.h"
 #include "mcp_server.h"
@@ -153,6 +154,9 @@ std::string PcControl::Run(const std::string& action, const std::string& text) {
     }
     if (text.empty()) {
         return "ERROR: `text` is empty.";
+    }
+    if (action == "type" && IsAsrHallucination(text)) {
+        return "ERROR: đây là tiếng ồn bị nhận nhầm, không phải lời người dùng; không gõ.";
     }
     if (text.size() > kMaxTextLength) {
         return "ERROR: text too long; send it in shorter parts.";

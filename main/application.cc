@@ -1,4 +1,5 @@
 #include "application.h"
+#include "asr_filter.h"
 #include "assets.h"
 #include "assets/lang_config.h"
 #include "audio_codec.h"
@@ -645,11 +646,17 @@ void Application::InitializeProtocol() {
             }
             if (strcmp(state->valuestring, "start") == 0) {
                 Schedule([this]() {
+                    if (ignore_turn_) {
+                        // Reply to recognizer noise: stop it and keep listening.
+                        AbortSpeaking(kAbortReasonNone);
+                        return;
+                    }
                     aborted_ = false;
                     SetDeviceState(kDeviceStateSpeaking);
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
+                    ignore_turn_ = false;
                     if (GetDeviceState() == kDeviceStateSpeaking) {
                         if (listening_mode_ == kListeningModeManualStop) {
                             SetDeviceState(kDeviceStateIdle);
@@ -684,6 +691,12 @@ void Application::InitializeProtocol() {
         } else if (strcmp(type->valuestring, "stt") == 0) {
             auto text = cJSON_GetObjectItem(root, "text");
             if (cJSON_IsString(text)) {
+                if (IsAsrHallucination(text->valuestring)) {
+                    ESP_LOGW(TAG, "Ignoring recognizer noise: %s", text->valuestring);
+                    ignore_turn_ = true;
+                    return;
+                }
+                ignore_turn_ = false;
                 std::vector<TextGlyph> glyphs;
                 uint8_t bpp = 0;
                 if (!TextGlyphPayload::Parse(root, glyphs, bpp)) {
