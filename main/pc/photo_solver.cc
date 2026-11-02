@@ -26,7 +26,9 @@ constexpr size_t kMaxPhotoBytes = 1536 * 1024;
 constexpr int64_t kMaxPhotoAgeUs = 30LL * 60 * 1000 * 1000;
 constexpr char kDefaultQuestion[] =
     "Ảnh là một đề bài tập (thường là Vật lý THCS). Giải ngay, không chép lại đề: liệt kê dữ "
-    "kiện ngắn gọn, rồi giải từng bước, ghi rõ công thức và đáp số.";
+    "kiện ngắn gọn, rồi giải từng bước, ghi rõ công thức và đáp số. Nếu có chữ hay số bị mờ, "
+    "hãy đoán hợp lý theo ngữ cảnh, ghi rõ giả thiết đó và vẫn giải đến cùng; không yêu cầu "
+    "đọc lại hay chụp lại đề.";
 // The explain service's own instructions are Chinese, so it answers in Chinese unless told
 // clearly; the robot's font has no Chinese glyphs either.
 constexpr char kLanguageRule[] =
@@ -38,42 +40,71 @@ constexpr char kPhonePage[] = R"HTML(<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chụp đề cho robot</title>
 <style>
-body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#f4f6fb;color:#1c2333;text-align:center}
-h1{font-size:22px;margin:8px 0 4px}
-p{margin:6px 0;color:#4a5468}
-label{display:block;margin:18px auto;max-width:360px;padding:22px;border-radius:16px;background:#2f6fed;
-color:#fff;font-size:22px;font-weight:600}
+body{font-family:system-ui,sans-serif;margin:0;padding:12px;background:#f4f6fb;color:#1c2333;text-align:center}
+h1{font-size:21px;margin:6px 0 4px}
+p{margin:6px 0;color:#4a5468;font-size:15px}
+.b{display:inline-block;margin:8px 4px;padding:16px 20px;border-radius:14px;background:#2f6fed;color:#fff;
+font-size:19px;font-weight:600;border:0}
+.g{background:#43a047}.n{background:#757575}
 input{display:none}
-img{max-width:100%;max-height:55vh;border-radius:12px;margin-top:12px}
-#st{font-size:18px;font-weight:600;margin-top:12px}
+canvas{max-width:100%;border-radius:10px;touch-action:manipulation}
+#st{font-size:17px;font-weight:600;margin-top:10px}
+#edit{display:none}
 </style></head><body>
 <h1>Chụp đề cho robot</h1>
-<p>Chụp rõ, đủ sáng, đề nằm ngang màn hình.</p>
-<label>&#128247; Chụp đề<input id="f" type="file" accept="image/*" capture="environment"></label>
-<div id="st"></div><img id="pv" alt="">
+<p>Chụp gần, đủ sáng, giữ máy thẳng. Mỗi lần một bài.</p>
+<label class="b">&#128247; Chụp đề<input id="f" type="file" accept="image/*" capture="environment"></label>
+<div id="edit">
+<p>Chạm vào <b>2 góc</b> để khoanh đúng bài (không bắt buộc).</p>
+<canvas id="cv"></canvas><br>
+<button class="b g" id="send">Gửi cho robot</button><button class="b n" id="clr">Bỏ khung</button>
+</div>
+<div id="st"></div>
 <script>
-const st=document.getElementById('st'),pv=document.getElementById('pv');
+const st=document.getElementById('st'),cv=document.getElementById('cv'),ed=document.getElementById('edit');
+let img=null,pts=[],k=1;
+function draw(){
+  const g=cv.getContext('2d');g.drawImage(img,0,0,cv.width,cv.height);
+  g.lineWidth=3;g.strokeStyle='#e53935';g.fillStyle='#e53935';
+  pts.forEach(p=>{g.beginPath();g.arc(p[0]*k,p[1]*k,7,0,7);g.fill();});
+  if(pts.length==2){const r=box();g.strokeRect(r[0]*k,r[1]*k,r[2]*k,r[3]*k);}
+}
+function box(){const[a,b]=pts;return[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.abs(a[0]-b[0]),Math.abs(a[1]-b[1])];}
 document.getElementById('f').onchange=e=>{
-  const file=e.target.files[0]; if(!file) return;
-  st.textContent='Đang thu nhỏ ảnh...';
-  const img=new Image();
-  img.onload=()=>{
-    const k=Math.min(1,1280/Math.max(img.width,img.height));
-    const c=document.createElement('canvas');
-    c.width=Math.round(img.width*k); c.height=Math.round(img.height*k);
-    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-    pv.src=c.toDataURL('image/jpeg',0.8);
-    c.toBlob(b=>{
-      st.textContent='Đang gửi...';
-      fetch('/photo',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:b})
-        .then(r=>r.ok?r.text():Promise.reject(r.status))
-        .then(()=>{st.textContent='Đã gửi! Robot đang giải, xem lời giải trên màn hình robot.'})
-        .catch(x=>{st.textContent='Gửi lỗi ('+x+'). Thử lại.'});
-    },'image/jpeg',0.85);
-    URL.revokeObjectURL(img.src);
-  };
-  img.onerror=()=>{st.textContent='Không đọc được ảnh này.'};
-  img.src=URL.createObjectURL(file);
+  const file=e.target.files[0];if(!file)return;
+  const im=new Image();
+  im.onload=()=>{img=im;pts=[];k=Math.min(1,900/Math.max(im.width,im.height));
+    cv.width=Math.round(im.width*k);cv.height=Math.round(im.height*k);ed.style.display='block';
+    st.textContent='';draw();URL.revokeObjectURL(im.src);};
+  im.onerror=()=>{st.textContent='Không đọc được ảnh này.'};
+  im.src=URL.createObjectURL(file);
+};
+cv.onclick=e=>{const r=cv.getBoundingClientRect(),s=cv.width/r.width;
+  const p=[(e.clientX-r.left)*s/k,(e.clientY-r.top)*s/k];
+  if(pts.length>=2)pts=[];pts.push(p);draw();};
+document.getElementById('clr').onclick=()=>{pts=[];draw();};
+document.getElementById('send').onclick=()=>{
+  if(!img)return;
+  let[x,y,w,h]=[0,0,img.width,img.height];
+  if(pts.length==2){const r=box();if(r[2]>20&&r[3]>20)[x,y,w,h]=r;}
+  // Long edge 1000..1600 px: big enough to read small print, small enough for the robot.
+  const s=Math.min(1600,Math.max(1000,Math.max(w,h)))/Math.max(w,h);
+  const c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);
+  const g=c.getContext('2d');g.imageSmoothingQuality='high';g.drawImage(img,x,y,w,h,0,0,c.width,c.height);
+  // Grey + contrast stretch so faded print reads like black ink on white paper.
+  const d=g.getImageData(0,0,c.width,c.height),a=d.data,hist=new Array(256).fill(0),n=a.length/4;
+  for(let i=0;i<a.length;i+=4){const v=(a[i]*299+a[i+1]*587+a[i+2]*114)/1000|0;a[i]=v;hist[v]++;}
+  let lo=0,hi=255,acc=0;for(;lo<255&&(acc+=hist[lo])<n*0.005;lo++);
+  acc=0;for(;hi>0&&(acc+=hist[hi])<n*0.10;hi--);if(hi-lo<40)lo=Math.max(0,hi-120);if(hi<=lo){lo=0;hi=255;}
+  for(let i=0;i<a.length;i+=4){let v=(a[i]-lo)*255/(hi-lo);v=v<0?0:v>255?255:v;a[i]=a[i+1]=a[i+2]=v;}
+  g.putImageData(d,0,0);
+  st.textContent='Đang gửi...';
+  c.toBlob(b=>{
+    fetch('/photo',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:b})
+      .then(r=>r.ok?r.text():Promise.reject(r.status))
+      .then(()=>{st.textContent='Đã gửi! Robot đang giải, xem lời giải trên màn hình robot.'})
+      .catch(x=>{st.textContent='Gửi lỗi ('+x+'). Thử lại.'});
+  },'image/jpeg',0.9);
 };
 </script></body></html>)HTML";
 
