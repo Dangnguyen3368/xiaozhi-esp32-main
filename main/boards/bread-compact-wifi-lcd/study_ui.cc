@@ -8,6 +8,7 @@
 #include <esp_log.h>
 #include <esp_lvgl_port.h>
 
+#include <algorithm>
 #include <cstdio>
 
 #define TAG "StudyUi"
@@ -194,6 +195,52 @@ void StudyMenu::BuildPair(const std::function<void(const char*, lv_color_t, std:
     add("Quay lại", kGrey, [this]() { ShowComputer(); });
 }
 
+// QR encoder (Nayuki qrcodegen) already linked in through esp_emote_gfx. LVGL's own copy
+// (LV_USE_QRCODE) cannot be enabled next to it: both define the same symbols.
+extern "C" {
+bool qrcodegen_encodeText(const char* text, uint8_t temp_buffer[], uint8_t qrcode[], int ecl,
+                          int min_version, int max_version, int mask, bool boost_ecl);
+int qrcodegen_getSize(const uint8_t qrcode[]);
+bool qrcodegen_getModule(const uint8_t qrcode[], int x, int y);
+}
+
+bool StudyMenu::BuildQrImage(const std::string& text, int max_px) {
+    constexpr int kMaxVersion = 10;
+    constexpr size_t kBufferLen = ((kMaxVersion * 4 + 17) * (kMaxVersion * 4 + 17) + 7) / 8 + 1;
+    uint8_t qrcode[kBufferLen];
+    uint8_t temp[kBufferLen];
+    if (!qrcodegen_encodeText(text.c_str(), temp, qrcode, /*ecl LOW*/ 0, 1, kMaxVersion,
+                              /*mask AUTO*/ -1, true)) {
+        ESP_LOGW(TAG, "QR code too long: %s", text.c_str());
+        return false;
+    }
+    const int modules = qrcodegen_getSize(qrcode);
+    constexpr int kQuiet = 2;  // white border, in modules
+    const int scale = std::max(1, max_px / (modules + 2 * kQuiet));
+    const int side = (modules + 2 * kQuiet) * scale;
+    qr_pixels_.assign(static_cast<size_t>(side) * side, 0xFFFF);
+    for (int y = 0; y < modules; ++y) {
+        for (int x = 0; x < modules; ++x) {
+            if (!qrcodegen_getModule(qrcode, x, y)) {
+                continue;
+            }
+            for (int dy = 0; dy < scale; ++dy) {
+                uint16_t* row = &qr_pixels_[static_cast<size_t>((y + kQuiet) * scale + dy) * side];
+                std::fill_n(row + (x + kQuiet) * scale, scale, 0x0000);
+            }
+        }
+    }
+    qr_dsc_ = {};
+    qr_dsc_.header.magic = LV_IMAGE_HEADER_MAGIC;
+    qr_dsc_.header.cf = LV_COLOR_FORMAT_RGB565;
+    qr_dsc_.header.w = side;
+    qr_dsc_.header.h = side;
+    qr_dsc_.header.stride = side * 2;
+    qr_dsc_.data_size = qr_pixels_.size() * 2;
+    qr_dsc_.data = reinterpret_cast<const uint8_t*>(qr_pixels_.data());
+    return true;
+}
+
 void StudyMenu::Build(Page page) {
     const bool formula_topics = page == Page::kFormulas;
     // Read the toggle states before taking the LVGL lock.
@@ -232,16 +279,11 @@ void StudyMenu::Build(Page page) {
         if (photo_url.empty()) {
             study_ui::AddLabel(panel_, "Robot chưa có Wi-Fi.", kRed);
         } else {
-#if LV_USE_QRCODE
-            lv_obj_set_flex_align(panel_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            lv_obj_t* qr = lv_qrcode_create(panel_);
-            lv_qrcode_set_size(qr, 140);
-            lv_qrcode_set_dark_color(qr, lv_color_black());
-            lv_qrcode_set_light_color(qr, lv_color_white());
-            lv_qrcode_update(qr, photo_url.data(), photo_url.size());
-            lv_obj_set_style_border_color(qr, lv_color_white(), 0);
-            lv_obj_set_style_border_width(qr, 6, 0);
-#endif
+            if (BuildQrImage(photo_url, 140)) {
+                lv_obj_set_flex_align(panel_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+                lv_obj_t* qr = lv_image_create(panel_);
+                lv_image_set_src(qr, &qr_dsc_);
+            }
             study_ui::AddLabel(panel_, photo_url, kBlue);
             study_ui::AddLabel(panel_, "Gửi xong robot tự giải và hiện lời giải.", kInk);
         }

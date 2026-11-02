@@ -83,7 +83,7 @@ Robot tự tìm máy tính qua tín hiệu UDP cổng 8766; nhạc đi qua HTTP 
 
 Trong Menu có trang **Máy tính** để bấm nhanh: Đọc để gõ, Mở Word/Excel/Notepad, Xuống dòng, Tab, Xóa lùi, Hoàn tác, Lưu, Đóng cửa sổ (Alt+F4), và **Ghép máy** (nhập mã 4 số bằng bàn phím trên màn) nếu không muốn đọc mã.
 
-**Chụp đề bằng điện thoại (không cần máy tính)**: bấm Menu > Máy tính > **Chụp đề (đ.thoại)**, robot hiện mã QR (địa chỉ `http://<robot>:8080/chup`). Điện thoại cùng Wi-Fi quét mã, bấm Chụp đề. Ảnh gửi thẳng vào robot, robot nhờ dịch vụ xem ảnh của server xiaozhi giải và hiện lời giải lên màn hình; nói "giảng bài vừa chụp" để nghe giảng. Mã QR cần `CONFIG_LV_USE_QRCODE=y` (đã có trong sdkconfig.defaults; bản build cũ trên máy chỉ hiện địa chỉ chữ). Cần server cấp dịch vụ xem ảnh (log có dòng `Vision service from server: https://...`).
+**Chụp đề bằng điện thoại (không cần máy tính)**: bấm Menu > Máy tính > **Chụp đề (đ.thoại)**, robot hiện mã QR (địa chỉ `http://<robot>:8080/chup`). Điện thoại cùng Wi-Fi quét mã, bấm Chụp đề. Ảnh gửi thẳng vào robot, robot nhờ dịch vụ xem ảnh của server xiaozhi giải và hiện lời giải lên màn hình; nói "giảng bài vừa chụp" để nghe giảng. Cần server cấp dịch vụ xem ảnh (log có dòng `Vision service from server: https://...`).
 
 Robot chỉ gõ, bấm phím và mở Word, Excel, PowerPoint, Notepad, máy tính bỏ túi, trình duyệt; không chạy được lệnh nào khác.
 

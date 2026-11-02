@@ -55,6 +55,10 @@ private:
 
     Actions actions_;
     std::string pair_code_;
+    // Builds qr_dsc_ (a QR code of `text`, at most `max_px` wide); false when it does not fit.
+    bool BuildQrImage(const std::string& text, int max_px);
+    std::vector<uint16_t> qr_pixels_;  // RGB565, kept while the page shows it
+    lv_image_dsc_t qr_dsc_ = {};
     lv_obj_t* panel_ = nullptr;
     std::vector<std::unique_ptr<std::function<void()>>> handlers_;
     std::atomic<bool> shown_{false};
