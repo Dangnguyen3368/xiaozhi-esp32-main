@@ -958,6 +958,16 @@ config USE_AUDIO_PROCESSOR
         is not enabled because this project does not provide an NSNet model.
         Requires ESP32-S3, ESP32-P4, or ESP32-S31 with PSRAM.
 
+config USE_AFE_NOISE_SUPPRESSION
+    bool "Enable WebRTC noise suppression and AGC on the microphone"
+    default y if BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
+    default n
+    depends on USE_AUDIO_PROCESSOR
+    help
+        Adds the AFE's WebRTC noise suppression (no model needed) and automatic gain
+        control to the uplink, so speech sent to the server is cleaner and louder.
+        If the AFE cannot be created with them, it falls back to the plain setup.
+
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
     default n
