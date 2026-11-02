@@ -29,6 +29,9 @@ constexpr char kDefaultQuestion[] =
     "kiện ngắn gọn, rồi giải từng bước, ghi rõ công thức và đáp số. Nếu có chữ hay số bị mờ, "
     "hãy đoán hợp lý theo ngữ cảnh, ghi rõ giả thiết đó và vẫn giải đến cùng; không yêu cầu "
     "đọc lại hay chụp lại đề.";
+constexpr char kRetryQuestion[] =
+    "Viết lời giải bài tập trong ảnh HOÀN TOÀN bằng tiếng Việt (Vietnamese only, 只用越南语). "
+    "Giải từng bước, ghi công thức và đáp số. Không dùng chữ Hán.";
 // The explain service's own instructions are Chinese, so it answers in Chinese unless told
 // clearly; the robot's font has no Chinese glyphs either.
 constexpr char kLanguageRule[] =
@@ -211,6 +214,17 @@ bool StartServer() {
     return true;
 }
 
+// True when the text has CJK ideographs (UTF-8 lead bytes 0xE4..0xE9 cover U+4000..U+9FFF).
+bool HasChinese(const std::string& text) {
+    int count = 0;
+    for (unsigned char c : text) {
+        if (c >= 0xE4 && c <= 0xE9 && ++count >= 3) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // The explain service answers JSON; pull out the text, or keep the reply as it is.
 std::string AnswerText(const std::string& reply) {
     std::unique_ptr<cJSON, decltype(&cJSON_Delete)> json(cJSON_Parse(reply.c_str()), cJSON_Delete);
@@ -245,12 +259,23 @@ std::string SolveLatest(bool& is_error) {
         return "ERROR: server xiaozhi chưa cấp dịch vụ xem ảnh cho robot này (cần mở trò chuyện "
                "với robot một lần sau khi bật máy).";
     }
-    const std::string reply = Explain(photo.data.get(), photo.size, kDefaultQuestion);
+    std::string reply = Explain(photo.data.get(), photo.size, kDefaultQuestion);
     if (reply.starts_with("ERROR:")) {
         return reply;
     }
+    std::string answer = AnswerText(reply);
+    if (HasChinese(answer)) {
+        // The robot's font cannot show it; ask once more, even more firmly.
+        ESP_LOGW(kTag, "Answer came back in Chinese, asking again in Vietnamese");
+        reply = Explain(photo.data.get(), photo.size, kRetryQuestion);
+        if (!reply.starts_with("ERROR:")) {
+            answer = AnswerText(reply);
+        }
+        if (HasChinese(answer)) {
+            return "ERROR: AI xem ảnh chỉ trả lời tiếng Trung, thử chụp lại rõ hơn.";
+        }
+    }
     is_error = false;
-    const std::string answer = AnswerText(reply);
     std::lock_guard<std::mutex> lock(mutex_);
     if (photo_.data == photo.data) {
         cached_answer_ = answer;
