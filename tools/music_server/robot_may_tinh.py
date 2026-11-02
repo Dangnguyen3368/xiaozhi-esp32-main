@@ -101,6 +101,71 @@ if os.name == "nt":
     KEYEVENTF_UNICODE = 0x0004
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     user32.SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    user32.OpenClipboard.argtypes = (wintypes.HWND,)
+    user32.OpenClipboard.restype = wintypes.BOOL
+    user32.CloseClipboard.restype = wintypes.BOOL
+    user32.EmptyClipboard.restype = wintypes.BOOL
+    user32.GetClipboardData.argtypes = (wintypes.UINT,)
+    user32.GetClipboardData.restype = wintypes.HANDLE
+    user32.SetClipboardData.argtypes = (wintypes.UINT, wintypes.HANDLE)
+    user32.SetClipboardData.restype = wintypes.HANDLE
+    kernel32.GlobalAlloc.argtypes = (wintypes.UINT, ctypes.c_size_t)
+    kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
+    kernel32.GlobalLock.argtypes = (wintypes.HGLOBAL,)
+    kernel32.GlobalLock.restype = ctypes.c_void_p
+    kernel32.GlobalUnlock.argtypes = (wintypes.HGLOBAL,)
+    kernel32.GlobalFree.argtypes = (wintypes.HGLOBAL,)
+    CF_UNICODETEXT = 13
+    GMEM_MOVEABLE = 0x0002
+
+    def _open_clipboard():
+        for _ in range(10):  # một chương trình khác có thể đang giữ clipboard
+            if user32.OpenClipboard(None):
+                return True
+            time.sleep(0.05)
+        return False
+
+    def get_clipboard_text():
+        if not _open_clipboard():
+            return None
+        try:
+            handle = user32.GetClipboardData(CF_UNICODETEXT)
+            if not handle:
+                return None
+            pointer = kernel32.GlobalLock(handle)
+            if not pointer:
+                return None
+            try:
+                return ctypes.wstring_at(pointer)
+            finally:
+                kernel32.GlobalUnlock(handle)
+        finally:
+            user32.CloseClipboard()
+
+    def set_clipboard_text(text):
+        data = ctypes.create_unicode_buffer(text)
+        size = ctypes.sizeof(data)
+        handle = kernel32.GlobalAlloc(GMEM_MOVEABLE, size)
+        if not handle:
+            return False
+        pointer = kernel32.GlobalLock(handle)
+        if not pointer:
+            kernel32.GlobalFree(handle)
+            return False
+        ctypes.memmove(pointer, data, size)
+        kernel32.GlobalUnlock(handle)
+        if not _open_clipboard():
+            kernel32.GlobalFree(handle)
+            return False
+        try:
+            user32.EmptyClipboard()
+            if not user32.SetClipboardData(CF_UNICODETEXT, handle):
+                kernel32.GlobalFree(handle)
+                return False
+            return True  # Windows giữ vùng nhớ từ đây
+        finally:
+            user32.CloseClipboard()
 
     def _send(inputs):
         array = (INPUT * len(inputs))(*inputs)
@@ -118,6 +183,12 @@ if os.name == "nt":
 else:
     def _send(inputs):
         raise RuntimeError("Điều khiển máy tính chỉ chạy trên Windows.")
+
+    def get_clipboard_text():
+        return None
+
+    def set_clipboard_text(text):
+        return False
 
     def _key_input(vk, up=False):
         return None
@@ -138,6 +209,20 @@ MODIFIERS = {"ctrl", "control", "alt", "shift", "win"}
 
 
 def type_text(text):
+    """Dán qua clipboard: đúng từng chữ, nhanh, không bị Unikey/EVKey sửa dấu hay rơi chữ.
+    Clipboard cũ được trả lại sau khi dán. Nếu không dùng được clipboard thì gõ từng phím."""
+    if os.name == "nt":
+        old = get_clipboard_text()
+        if set_clipboard_text(text.replace("\r\n", "\n").replace("\n", "\r\n")):
+            press_keys("ctrl+v")
+            time.sleep(0.4)  # chờ ứng dụng dán xong rồi mới trả clipboard cũ
+            if old is not None:
+                set_clipboard_text(old)
+            return
+    type_keys(text)
+
+
+def type_keys(text):
     inputs = []
     for ch in text:
         if ch == "\n":
