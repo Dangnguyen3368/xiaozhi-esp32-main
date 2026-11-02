@@ -143,15 +143,7 @@ private:
             PcControl::GetInstance().RunAsync(action, text);
         };
         actions.pc_paired = []() { return PcControl::GetInstance().IsPaired(); };
-        actions.show_phone_photo = []() {
-            auto* display = Board::GetInstance().GetDisplay();
-            const std::string url = photo_solver::PhoneUrl();
-            if (url.empty()) {
-                display->ShowNotification("Robot chưa có Wi-Fi", 6000);
-            } else {
-                display->ShowNotification("Điện thoại mở: " + url, 30000);
-            }
-        };
+        actions.phone_photo_url = []() { return photo_solver::PhoneUrl(); };
         actions.start_dictation = []() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateIdle) {
@@ -404,6 +396,12 @@ private:
         FirmwareUpdate::GetInstance().RegisterTool();
         PcControl::GetInstance().RegisterTool();
         photo_solver::RegisterTool();
+        photo_solver::SetSolutionViewer([this](const std::string& text) {
+            if (study_menu_) {
+                study_menu_->Hide();
+            }
+            figure_view_.ShowNote("Lời giải ảnh vừa chụp", text);
+        });
         CreateStudyMenu();
         // Created once the main loop runs: building the button looks up the theme font through
         // Board::GetInstance(), which must not be called while the board is still being built.

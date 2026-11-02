@@ -33,7 +33,7 @@ public:
         std::function<void(const std::string& action, const std::string& text)> pc_command;
         std::function<bool()> pc_paired;
         std::function<void()> start_dictation;  // start listening so the user can dictate
-        std::function<void()> show_phone_photo;  // show where the phone sends exam photos
+        std::function<std::string()> phone_photo_url;  // address the phone uploads exam photos to
         // Labels reflect what the toggles will do.
         std::function<bool()> pomodoro_running;
         std::function<bool()> radio_running;
@@ -48,7 +48,7 @@ public:
     bool IsShown() const { return shown_.load(); }
 
 private:
-    enum class Page { kMain, kFormulas, kComputer, kPair };
+    enum class Page { kMain, kFormulas, kComputer, kPair, kPhoto };
     void Build(Page page);
     void BuildComputer(lv_obj_t* grid, const std::function<void(const char*, lv_color_t, std::function<void()>)>& add);
     void BuildPair(const std::function<void(const char*, lv_color_t, std::function<void()>)>& add);

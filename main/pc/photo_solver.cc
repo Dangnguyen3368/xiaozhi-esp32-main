@@ -5,11 +5,14 @@
 #include "mcp_server.h"
 #include "system_info.h"
 
+#include <cJSON.h>
 #include <esp_heap_caps.h>
 #include <esp_http_server.h>
 #include <esp_log.h>
 #include <esp_timer.h>
 #include <wifi_manager.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <memory>
 #include <mutex>
@@ -59,7 +62,7 @@ document.getElementById('f').onchange=e=>{
       st.textContent='Đang gửi...';
       fetch('/photo',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:b})
         .then(r=>r.ok?r.text():Promise.reject(r.status))
-        .then(()=>{st.textContent='Đã gửi! Giờ nói với robot: "giải bài vừa chụp".'})
+        .then(()=>{st.textContent='Đã gửi! Robot đang giải, xem lời giải trên màn hình robot.'})
         .catch(x=>{st.textContent='Gửi lỗi ('+x+'). Thử lại.'});
     },'image/jpeg',0.85);
     URL.revokeObjectURL(img.src);
@@ -78,6 +81,14 @@ struct Photo {
 std::mutex mutex_;
 httpd_handle_t server_ = nullptr;
 Photo photo_;
+std::function<void(const std::string&)> viewer_;
+std::mutex explain_mutex_;  // one explain request at a time
+// The answer for photo_ with the default question (empty until it is solved).
+std::string cached_answer_;
+const char* cached_for_ = nullptr;
+
+std::string Explain(const char* jpeg, size_t size, const std::string& question);
+void SolveTask(void* arg);
 
 void Notify(const std::string& text, int ms) {
     if (auto* display = Board::GetInstance().GetDisplay()) {
@@ -124,7 +135,10 @@ esp_err_t HandleUpload(httpd_req_t* req) {
         photo_ = Photo{std::move(data), total, esp_timer_get_time()};
     }
     ESP_LOGI(kTag, "Received %u-byte photo from the phone", static_cast<unsigned>(total));
-    Notify("Đã nhận ảnh. Nói \"giải bài vừa chụp\"", 8000);
+    Notify("Đã nhận ảnh, đang giải...", 8000);
+    if (xTaskCreate(SolveTask, "photo_solve", 8192, nullptr, 3, nullptr) != pdPASS) {
+        ESP_LOGE(kTag, "Cannot start photo_solve task");
+    }
     httpd_resp_set_type(req, "text/plain; charset=utf-8");
     return httpd_resp_send(req, "ok", HTTPD_RESP_USE_STRLEN);
 }
@@ -159,6 +173,67 @@ bool StartServer() {
     httpd_register_uri_handler(server_, &upload);
     ESP_LOGI(kTag, "Photo page started on port %d", kPort);
     return true;
+}
+
+// The explain service answers JSON; pull out the text, or keep the reply as it is.
+std::string AnswerText(const std::string& reply) {
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> json(cJSON_Parse(reply.c_str()), cJSON_Delete);
+    if (json) {
+        for (const char* key : {"response", "text", "result", "content", "message"}) {
+            cJSON* item = cJSON_GetObjectItem(json.get(), key);
+            if (cJSON_IsString(item) && item->valuestring[0] != '\0') {
+                return item->valuestring;
+            }
+        }
+    }
+    return reply;
+}
+
+// Solves the latest photo with the default question, caching the answer for the voice tool.
+std::string SolveLatest(bool& is_error) {
+    std::lock_guard<std::mutex> explain_lock(explain_mutex_);
+    Photo photo;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        photo = photo_;
+        if (photo.data && cached_for_ == photo.data.get() && !cached_answer_.empty()) {
+            is_error = false;
+            return cached_answer_;
+        }
+    }
+    is_error = true;
+    if (!photo.data) {
+        return "ERROR: chưa có ảnh.";
+    }
+    if (McpServer::GetInstance().vision_url().empty()) {
+        return "ERROR: server xiaozhi chưa cấp dịch vụ xem ảnh cho robot này (cần mở trò chuyện "
+               "với robot một lần sau khi bật máy).";
+    }
+    const std::string reply = Explain(photo.data.get(), photo.size, kDefaultQuestion);
+    if (reply.starts_with("ERROR:")) {
+        return reply;
+    }
+    is_error = false;
+    const std::string answer = AnswerText(reply);
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (photo_.data == photo.data) {
+        cached_answer_ = answer;
+        cached_for_ = photo.data.get();
+    }
+    return answer;
+}
+
+void SolveTask(void*) {
+    bool is_error = false;
+    const std::string answer = SolveLatest(is_error);
+    if (is_error) {
+        Notify(answer.substr(7), 10000);
+    } else if (viewer_) {
+        viewer_(answer);
+    } else {
+        Notify("Đã giải xong. Nói \"giải bài vừa chụp\" để nghe.", 8000);
+    }
+    vTaskDelete(nullptr);
 }
 
 // Sends the JPEG to the server's image explain service, the same request a camera board makes.
@@ -211,6 +286,8 @@ std::string Explain(const char* jpeg, size_t size, const std::string& question) 
 
 }  // namespace
 
+void SetSolutionViewer(std::function<void(const std::string& text)> viewer) { viewer_ = std::move(viewer); }
+
 std::string PhoneUrl() {
     const std::string ip = WifiManager::GetInstance().GetIpAddress();
     if (ip.empty() || !StartServer()) {
@@ -228,7 +305,9 @@ void RegisterTool() {
         "đề button) and taps Chụp đề. Use this when the user says giải bài vừa chụp, xem ảnh vừa "
         "chụp, đọc đề trong ảnh, or asks how to send a photo. Leave `question` empty to read and "
         "solve the problem in the photo. Returns the vision AI's answer; explain it to the user in "
-        "Vietnamese, step by step. If it says there is no new photo, tell the user the address.",
+        "Vietnamese, step by step. The robot already solves each uploaded photo and shows the "
+        "answer on its screen, so this returns that answer quickly. If it says there is no new "
+        "photo, tell the user the address.",
         PropertyList({Property("question", kPropertyTypeString, std::string(""))}),
         [](const PropertyList& properties) -> ToolResult {
             std::string question = properties["question"].value<std::string>();
@@ -255,7 +334,12 @@ void RegisterTool() {
                     "được ảnh.");
             }
             Notify("Đang xem ảnh vừa chụp...", 4000);
-            return Explain(photo.data.get(), photo.size, question);
+            if (question == kDefaultQuestion) {
+                bool is_error = false;
+                return SolveLatest(is_error);
+            }
+            std::lock_guard<std::mutex> explain_lock(explain_mutex_);
+            return AnswerText(Explain(photo.data.get(), photo.size, question));
         });
 }
 
