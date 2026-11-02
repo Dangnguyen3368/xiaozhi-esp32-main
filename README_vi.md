@@ -83,7 +83,7 @@ Robot tự tìm máy tính qua tín hiệu UDP cổng 8766; nhạc đi qua HTTP 
 
 Trong Menu có trang **Máy tính** để bấm nhanh: Đọc để gõ, Mở Word/Excel/Notepad, Xuống dòng, Tab, Xóa lùi, Hoàn tác, Lưu, Đóng cửa sổ (Alt+F4), và **Ghép máy** (nhập mã 4 số bằng bàn phím trên màn) nếu không muốn đọc mã.
 
-**Chụp đề bằng điện thoại**: điện thoại cùng Wi-Fi mở `http://<máy tính>:8765/chup` (địa chỉ hiện trong cửa sổ robot-may-tinh và ở nút **Chụp đề (đ.thoại)** trên trang Máy tính), bấm Chụp đề. Sau đó nói với robot "giải bài vừa chụp": robot lấy ảnh, nhờ dịch vụ xem ảnh của server xiaozhi đọc đề rồi giảng. Cần server cấp dịch vụ xem ảnh (log có dòng `Vision service from server: https://...`).
+**Chụp đề bằng điện thoại (không cần máy tính)**: bấm Menu > Máy tính > **Chụp đề (đ.thoại)**, robot hiện địa chỉ `http://<robot>:8080/chup`. Điện thoại cùng Wi-Fi mở địa chỉ đó, bấm Chụp đề, gửi. Rồi nói với robot "giải bài vừa chụp": robot nhờ dịch vụ xem ảnh của server xiaozhi đọc đề và giảng. Cần server cấp dịch vụ xem ảnh (log có dòng `Vision service from server: https://...`).
 
 Robot chỉ gõ, bấm phím và mở Word, Excel, PowerPoint, Notepad, máy tính bỏ túi, trình duyệt; không chạy được lệnh nào khác.
 

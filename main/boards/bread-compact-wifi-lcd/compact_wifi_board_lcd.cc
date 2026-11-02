@@ -147,9 +147,9 @@ private:
             auto* display = Board::GetInstance().GetDisplay();
             const std::string url = photo_solver::PhoneUrl();
             if (url.empty()) {
-                display->ShowNotification("Bật robot-may-tinh.bat trên máy tính trước", 6000);
+                display->ShowNotification("Robot chưa có Wi-Fi", 6000);
             } else {
-                display->ShowNotification("Điện thoại mở: " + url + " rồi nói \"giải bài vừa chụp\"", 15000);
+                display->ShowNotification("Điện thoại mở: " + url, 30000);
             }
         };
         actions.start_dictation = []() {
