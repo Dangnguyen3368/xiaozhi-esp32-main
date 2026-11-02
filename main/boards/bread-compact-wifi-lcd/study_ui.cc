@@ -142,6 +142,7 @@ void StudyMenu::BuildComputer(lv_obj_t* grid,
             actions_.start_dictation();
         }
     });
+    add("Chụp đề (đ.thoại)", kGreen, [this]() { Build(Page::kPhoto); });
     add("Mở Word", kBlue, command("open", "word"));
     add("Mở Excel", kGreen, command("open", "excel"));
     add("Mở Notepad", kTeal, command("open", "notepad"));
@@ -200,6 +201,9 @@ void StudyMenu::Build(Page page) {
     const bool pomodoro = actions_.pomodoro_running && actions_.pomodoro_running();
     const bool radio = actions_.radio_running && actions_.radio_running();
     const bool local_music = actions_.local_music_running && actions_.local_music_running();
+    // Starts the robot's photo page, so do it before taking the LVGL lock too.
+    const std::string photo_url =
+        page == Page::kPhoto && actions_.phone_photo_url ? actions_.phone_photo_url() : std::string();
 
     if (!lvgl_port_lock(kLockTimeoutMs)) {
         ESP_LOGE(TAG, "Failed to lock LVGL");
@@ -220,8 +224,28 @@ void StudyMenu::Build(Page page) {
         title = paired ? "Máy tính (đã ghép)" : "Máy tính (chưa ghép: bấm Ghép máy)";
     } else if (page == Page::kPair) {
         title = "Nhập mã 4 số trên máy tính";
+    } else if (page == Page::kPhoto) {
+        title = "Điện thoại quét mã, chụp đề rồi gửi";
     }
     study_ui::AddLabel(panel_, title, kInk);
+    if (page == Page::kPhoto) {
+        if (photo_url.empty()) {
+            study_ui::AddLabel(panel_, "Robot chưa có Wi-Fi.", kRed);
+        } else {
+#if LV_USE_QRCODE
+            lv_obj_set_flex_align(panel_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_t* qr = lv_qrcode_create(panel_);
+            lv_qrcode_set_size(qr, 140);
+            lv_qrcode_set_dark_color(qr, lv_color_black());
+            lv_qrcode_set_light_color(qr, lv_color_white());
+            lv_qrcode_update(qr, photo_url.data(), photo_url.size());
+            lv_obj_set_style_border_color(qr, lv_color_white(), 0);
+            lv_obj_set_style_border_width(qr, 6, 0);
+#endif
+            study_ui::AddLabel(panel_, photo_url, kBlue);
+            study_ui::AddLabel(panel_, "Gửi xong robot tự giải và hiện lời giải.", kInk);
+        }
+    }
     if (page == Page::kPair) {
         std::string shown = pair_code_;
         while (shown.size() < 4) {
@@ -248,6 +272,12 @@ void StudyMenu::Build(Page page) {
 
     if (page == Page::kComputer) {
         BuildComputer(grid, add);
+        shown_ = true;
+        lvgl_port_unlock();
+        return;
+    }
+    if (page == Page::kPhoto) {
+        add("Quay lại", kGrey, [this]() { ShowComputer(); });
         shown_ = true;
         lvgl_port_unlock();
         return;

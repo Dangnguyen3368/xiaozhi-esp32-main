@@ -438,6 +438,11 @@ public:
     void ParseMessage(const cJSON* json, ResponseSender response_sender = nullptr);
     void ParseMessage(const std::string& message, ResponseSender response_sender = nullptr);
 
+    // Image explain service the server announced in "initialize" (empty until then). Kept even
+    // without a camera, so photos from elsewhere (e.g. the user's phone) can be explained.
+    const std::string& vision_url() const { return vision_url_; }
+    const std::string& vision_token() const { return vision_token_; }
+
 private:
     McpServer();
     ~McpServer();
@@ -456,6 +461,8 @@ private:
                     ResponseSender response_sender);
 
     std::vector<std::unique_ptr<McpTool>> tools_;
+    std::string vision_url_;
+    std::string vision_token_;
 };
 
 #endif  // MCP_SERVER_H

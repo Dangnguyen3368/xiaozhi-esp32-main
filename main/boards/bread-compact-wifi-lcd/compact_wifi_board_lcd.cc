@@ -5,6 +5,7 @@
 #include "application.h"
 #include "audio/internet_radio.h"
 #include "pc/pc_control.h"
+#include "pc/photo_solver.h"
 #include "study/physics_tutor.h"
 #include "xpt2046_touch.h"
 #include "figure_view.h"
@@ -142,6 +143,7 @@ private:
             PcControl::GetInstance().RunAsync(action, text);
         };
         actions.pc_paired = []() { return PcControl::GetInstance().IsPaired(); };
+        actions.phone_photo_url = []() { return photo_solver::PhoneUrl(); };
         actions.start_dictation = []() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateIdle) {
@@ -393,6 +395,13 @@ private:
         timer.RegisterTool();
         FirmwareUpdate::GetInstance().RegisterTool();
         PcControl::GetInstance().RegisterTool();
+        photo_solver::RegisterTool();
+        photo_solver::SetSolutionViewer([this](const std::string& text) {
+            if (study_menu_) {
+                study_menu_->Hide();
+            }
+            figure_view_.ShowNote("Lời giải ảnh vừa chụp", text);
+        });
         CreateStudyMenu();
         // Created once the main loop runs: building the button looks up the theme font through
         // Board::GetInstance(), which must not be called while the board is still being built.
