@@ -177,6 +177,16 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
     }
     afe_config->agc_init = false;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
+#if CONFIG_USE_AFE_NOISE_SUPPRESSION
+    // WebRTC noise suppression needs no model; AGC lifts quiet speech for recognition.
+    afe_config->ns_init = true;
+    afe_config->ns_model_name = nullptr;
+    afe_config->afe_ns_mode = AFE_NS_MODE_WEBRTC;
+    afe_config->agc_init = true;
+    afe_config->agc_mode = AFE_AGC_MODE_WEBRTC;
+    afe_config->agc_compression_gain_db = 9;
+    afe_config->agc_target_level_dbfs = 3;
+#endif
 
     ESP_LOGI(TAG, "Before AFE create: free=%u min=%u largest=%u",
              heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
@@ -186,6 +196,19 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
     if (afe_iface_ != nullptr) {
         afe_data_ = afe_iface_->create_from_config(afe_config);
     }
+#if CONFIG_USE_AFE_NOISE_SUPPRESSION
+    if (afe_iface_ == nullptr || afe_data_ == nullptr) {
+        ESP_LOGW(TAG, "AFE with noise suppression/AGC failed; retrying without them");
+        afe_config->ns_init = false;
+        afe_config->agc_init = false;
+        afe_iface_ = esp_afe_handle_from_config(afe_config);
+        if (afe_iface_ != nullptr) {
+            afe_data_ = afe_iface_->create_from_config(afe_config);
+        }
+    } else {
+        ESP_LOGI(TAG, "AFE noise suppression (WebRTC) and AGC enabled");
+    }
+#endif
     afe_config_free(afe_config);
 
     if (afe_iface_ == nullptr || afe_data_ == nullptr) {
