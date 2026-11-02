@@ -127,6 +127,8 @@ void StudyMenu::ShowFormulaTopics() { Build(Page::kFormulas); }
 
 void StudyMenu::ShowComputer() { Build(Page::kComputer); }
 
+void StudyMenu::ShowPhoto() { Build(Page::kPhoto); }
+
 void StudyMenu::BuildComputer(lv_obj_t* grid,
                               const std::function<void(const char*, lv_color_t, std::function<void()>)>& add) {
     (void)grid;

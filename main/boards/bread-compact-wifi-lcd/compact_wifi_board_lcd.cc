@@ -402,6 +402,12 @@ private:
             }
             figure_view_.ShowNote("Lời giải ảnh vừa chụp", text);
         });
+        photo_solver::SetQrViewer([this]() {
+            figure_view_.Hide();
+            if (study_menu_) {
+                study_menu_->ShowPhoto();
+            }
+        });
         CreateStudyMenu();
         // Created once the main loop runs: building the button looks up the theme font through
         // Board::GetInstance(), which must not be called while the board is still being built.
