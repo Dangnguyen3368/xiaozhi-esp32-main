@@ -44,6 +44,7 @@ public:
     void Show();
     void ShowFormulaTopics();
     void ShowComputer();
+    void ShowPhoto();  // QR code page for sending an exam photo from the phone
     void Hide();
     bool IsShown() const { return shown_.load(); }
 

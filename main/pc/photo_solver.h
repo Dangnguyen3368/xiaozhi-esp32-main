@@ -16,6 +16,9 @@ void RegisterTool();
 // board can show it on screen right away.
 void SetSolutionViewer(std::function<void(const std::string& text)> viewer);
 
+// Shows the QR page for the phone (called on the main task when the voice tool needs a photo).
+void SetQrViewer(std::function<void()> viewer);
+
 // Starts the robot's photo page if needed and returns its address for the phone
 // ("http://<robot ip>:8080/chup"); empty when the robot has no Wi-Fi address.
 std::string PhoneUrl();

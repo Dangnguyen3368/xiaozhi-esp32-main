@@ -121,6 +121,7 @@ std::mutex mutex_;
 httpd_handle_t server_ = nullptr;
 Photo photo_;
 std::function<void(const std::string&)> viewer_;
+std::function<void()> qr_viewer_;
 std::mutex explain_mutex_;  // one explain request at a time
 // The answer for photo_ with the default question (empty until it is solved).
 std::string cached_answer_;
@@ -357,38 +358,47 @@ std::string PhoneUrl() {
     return "http://" + ip + ":" + std::to_string(kPort) + "/chup";
 }
 
+void SetQrViewer(std::function<void()> viewer) { qr_viewer_ = std::move(viewer); }
+
 void RegisterTool() {
     McpServer::GetInstance().AddTool(
         "self.pc.explain_photo",
-        "Look at the photo the user just took with their phone and answer `question` about it. "
-        "The phone sends photos straight to the robot: on the same Wi-Fi it opens the address this "
-        "tool reports (http://<robot>:8080/chup, also shown by the robot's Menu > Máy tính > Chụp "
-        "đề button) and taps Chụp đề. Use this when the user says giải bài vừa chụp, xem ảnh vừa "
-        "chụp, đọc đề trong ảnh, or asks how to send a photo. Leave `question` empty to read and "
-        "solve the problem in the photo. Returns the vision AI's answer; explain it to the user in "
-        "Vietnamese, step by step, from this answer: never ask the user to read the problem aloud, "
-        "the photo already has it. The robot already solves each uploaded photo and shows the "
-        "answer on its screen, so this returns that answer quickly. If it says there is no new "
-        "photo, tell the user the address.",
-        PropertyList({Property("question", kPropertyTypeString, std::string(""))}),
+        "Solve exam problems from a photo taken with the user's phone (no computer needed). "
+        "`mode`=`new` (default): use when the user wants to solve a problem from a photo / chụp "
+        "đề / giải đề từ ảnh / giải bài trong ảnh. The robot shows a QR code on its screen; the "
+        "user scans it with the phone on the same Wi-Fi, takes the photo and sends it. The robot "
+        "then solves it by itself and shows the solution on screen, so just tell the user "
+        "briefly to scan the QR and take the photo; do not ask them to read the problem. "
+        "`mode`=`last`: use when the user asks about the photo already sent (giải bài vừa chụp, "
+        "giảng lại bài vừa chụp, or a `question` about it); returns the vision AI's answer, which "
+        "you explain in Vietnamese step by step. Never ask the user to read the problem aloud.",
+        PropertyList({Property("mode", kPropertyTypeString, std::string("new")),
+                      Property("question", kPropertyTypeString, std::string(""))}),
         [](const PropertyList& properties) -> ToolResult {
+            const std::string mode = properties["mode"].value<std::string>();
             std::string question = properties["question"].value<std::string>();
             if (question.empty()) {
                 question = kDefaultQuestion;
             }
             const std::string url = PhoneUrl();
+            if (url.empty()) {
+                return std::string("ERROR: robot chưa có Wi-Fi nên chưa nhận ảnh được.");
+            }
             Photo photo;
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 photo = photo_;
             }
-            if (!photo.data || esp_timer_get_time() - photo.taken_us > kMaxPhotoAgeUs) {
-                const std::string error =
-                    url.empty() ? std::string("ERROR: robot chưa có Wi-Fi nên chưa nhận ảnh được.")
-                                : "ERROR: chưa có ảnh mới. Trên điện thoại cùng Wi-Fi mở " + url +
-                                      ", bấm Chụp đề rồi gửi.";
-                Notify(error.substr(7), 15000);
-                return error;
+            const bool fresh = photo.data && esp_timer_get_time() - photo.taken_us <= kMaxPhotoAgeUs;
+            if (mode != "last" || !fresh) {
+                if (qr_viewer_) {
+                    qr_viewer_();
+                } else {
+                    Notify("Điện thoại mở: " + url, 30000);
+                }
+                return "Đã hiện mã QR trên màn hình robot (địa chỉ " + url +
+                       "). Bảo người dùng quét bằng điện thoại cùng Wi-Fi, chụp đề rồi bấm Gửi; "
+                       "robot sẽ tự giải và hiện lời giải trên màn hình.";
             }
             if (McpServer::GetInstance().vision_url().empty()) {
                 return std::string(
