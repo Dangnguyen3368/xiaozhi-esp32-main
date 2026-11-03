@@ -6,6 +6,7 @@
 #include "audio/internet_radio.h"
 #include "pc/pc_control.h"
 #include "pc/photo_solver.h"
+#include "pc/bank_notify.h"
 #include "study/physics_tutor.h"
 #include "xpt2046_touch.h"
 #include "figure_view.h"
@@ -144,6 +145,8 @@ private:
         };
         actions.pc_paired = []() { return PcControl::GetInstance().IsPaired(); };
         actions.phone_photo_url = []() { return photo_solver::PhoneUrl(); };
+        actions.bank_setup_url = []() { return bank_notify::SetupUrl(); };
+        actions.bank_test = []() { bank_notify::Announce("Thử: TK 0123 +500,000 VND. Số dư 1,500,000 VND"); };
         actions.start_dictation = []() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateIdle) {
@@ -406,6 +409,19 @@ private:
             figure_view_.Hide();
             if (study_menu_) {
                 study_menu_->ShowPhoto();
+            }
+        });
+        bank_notify::Start();
+        bank_notify::SetViewer([this](const std::string& title, const std::string& text) {
+            if (study_menu_) {
+                study_menu_->Hide();
+            }
+            figure_view_.ShowNote(title, text);
+        });
+        bank_notify::SetSetupViewer([this]() {
+            figure_view_.Hide();
+            if (study_menu_) {
+                study_menu_->ShowBank();
             }
         });
         CreateStudyMenu();

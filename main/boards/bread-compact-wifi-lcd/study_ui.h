@@ -34,6 +34,8 @@ public:
         std::function<bool()> pc_paired;
         std::function<void()> start_dictation;  // start listening so the user can dictate
         std::function<std::string()> phone_photo_url;  // address the phone uploads exam photos to
+        std::function<std::string()> bank_setup_url;   // phone setup page of the bank announcer
+        std::function<void()> bank_test;               // announce a sample transfer
         // Labels reflect what the toggles will do.
         std::function<bool()> pomodoro_running;
         std::function<bool()> radio_running;
@@ -45,11 +47,12 @@ public:
     void ShowFormulaTopics();
     void ShowComputer();
     void ShowPhoto();  // QR code page for sending an exam photo from the phone
+    void ShowBank();   // QR code page to set up bank transfer announcements
     void Hide();
     bool IsShown() const { return shown_.load(); }
 
 private:
-    enum class Page { kMain, kFormulas, kComputer, kPair, kPhoto };
+    enum class Page { kMain, kFormulas, kComputer, kPair, kPhoto, kBank };
     void Build(Page page);
     void BuildComputer(lv_obj_t* grid, const std::function<void(const char*, lv_color_t, std::function<void()>)>& add);
     void BuildPair(const std::function<void(const char*, lv_color_t, std::function<void()>)>& add);
