@@ -245,9 +245,9 @@ code{display:block;word-break:break-all;background:#eef;padding:10px;border-radi
 button{font-size:17px;padding:10px 16px;margin:8px 8px 0 0;border-radius:8px;border:0;background:#1565c0;color:#fff}
 li{margin:6px 0}#st{color:#2e7d32;font-weight:bold}</style></head><body>
 <h2>Loa báo chuyển khoản</h2>
-<p>Địa chỉ gửi thông báo cho robot:</p><code id="u">@URL@</code>
-<button onclick="navigator.clipboard.writeText(document.getElementById('u').textContent).then(()=>st.textContent='Đã chép địa chỉ.')">Chép địa chỉ</button>
-<button onclick="fetch(document.getElementById('u').textContent,{method:'POST',body:'Thử: TK 0123 +500,000 VND. Số dư 1,500,000 VND'}).then(r=>st.textContent=r.ok?'Robot đã nhận, nghe thử nhé.':'Lỗi '+r.status)">Thử 500.000đ</button>
+<p>Địa chỉ gửi thông báo cho robot:</p><textarea id="u" readonly rows="2" style="width:100%;font-size:15px">@URL@</textarea>
+<button onclick="var u=document.getElementById('u');u.focus();u.setSelectionRange(0,9999);var ok=false;try{ok=document.execCommand('copy')}catch(e){}st.textContent=ok?'Đã chép địa chỉ.':'Địa chỉ đã được bôi đen, bấm Sao chép.'">Chép địa chỉ</button>
+<button onclick="fetch(document.getElementById('u').value,{method:'POST',body:'Thử: TK 0123 +500,000 VND. Số dư 1,500,000 VND'}).then(r=>st.textContent=r.ok?'Robot đã nhận, nghe thử nhé.':'Lỗi '+r.status)">Thử 500.000đ</button>
 <p id="st"></p>
 <h3>Cài trên Android (MacroDroid, miễn phí)</h3><ol>
 <li>Cài <b>MacroDroid</b> từ CH Play, mở app, bấm <b>Thêm Macro</b>.</li>
