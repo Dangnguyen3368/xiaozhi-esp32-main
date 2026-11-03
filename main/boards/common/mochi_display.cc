@@ -31,8 +31,8 @@ inline void StepSpring(float& current, float& velocity, float target) {
 MochiDisplay::MochiDisplay(esp_lcd_panel_io_handle_t io_handle,
                             esp_lcd_panel_handle_t panel_handle,
                             int width, int height,
-                            bool mirror_x, bool mirror_y)
-    : OledDisplay(io_handle, panel_handle, width, height, mirror_x, mirror_y),
+                            bool mirror_x, bool mirror_y, bool secondary)
+    : OledDisplay(io_handle, panel_handle, width, height, mirror_x, mirror_y, secondary),
       current_x_offset_(0) {
     // CHI duoc phep lam viec khong dinh toi LVGL o day (tinh toan hinh
     // hoc). KHONG duoc tao lv_obj/lv_timer trong constructor - man hinh
@@ -94,7 +94,7 @@ void MochiDisplay::SetupUI() {
     BuildMouth();
     {
         DisplayLockGuard lock(this);
-        radio_root_ = lv_obj_create(lv_screen_active());
+        radio_root_ = lv_obj_create(lv_display_get_screen_active(display_));
         lv_obj_remove_style_all(radio_root_);
         lv_obj_set_size(radio_root_, width_, height_);
         lv_obj_center(radio_root_);
@@ -209,7 +209,7 @@ MochiDisplay::~MochiDisplay() {
 void MochiDisplay::BuildFace() {
     DisplayLockGuard lock(this);
 
-    auto screen = lv_screen_active();
+    auto screen = lv_display_get_screen_active(display_);
     lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
 

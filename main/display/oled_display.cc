@@ -21,8 +21,8 @@ LV_FONT_DECLARE(font_material_symbols_30_1);
 LV_FONT_DECLARE(font_noto_emoji_30_1);
 
 OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                         int width, int height, bool mirror_x, bool mirror_y)
-    : panel_io_(panel_io), panel_(panel) {
+                         int width, int height, bool mirror_x, bool mirror_y, bool secondary)
+    : panel_io_(panel_io), panel_(panel), secondary_(secondary) {
     width_ = width;
     height_ = height;
 
@@ -37,18 +37,20 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     dark_theme->set_large_icon_font(large_icon_font);
     dark_theme->set_emoji_font(emoji_font);
 
-    auto& theme_manager = LvglThemeManager::GetInstance();
-    theme_manager.RegisterTheme("dark", dark_theme);
     current_theme_ = dark_theme;
+    if (!secondary_) {
+        auto& theme_manager = LvglThemeManager::GetInstance();
+        theme_manager.RegisterTheme("dark", dark_theme);
 
-    ESP_LOGI(TAG, "Initialize LVGL");
-    lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-    port_cfg.task_priority = 1;
-    port_cfg.task_stack = 6144;
+        ESP_LOGI(TAG, "Initialize LVGL");
+        lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+        port_cfg.task_priority = 1;
+        port_cfg.task_stack = 6144;
 #if CONFIG_SOC_CPU_CORES_NUM > 1
-    port_cfg.task_affinity = 1;
+        port_cfg.task_affinity = 1;
 #endif
-    lvgl_port_init(&port_cfg);
+        lvgl_port_init(&port_cfg);
+    }
 
     ESP_LOGI(TAG, "Adding OLED display");
     const lvgl_port_display_cfg_t display_cfg = {
@@ -139,7 +141,9 @@ OledDisplay::~OledDisplay() {
     if (panel_io_ != nullptr) {
         esp_lcd_panel_io_del(panel_io_);
     }
-    lvgl_port_deinit();
+    if (!secondary_) {
+        lvgl_port_deinit();
+    }
 }
 
 bool OledDisplay::Lock(int timeout_ms) { return lvgl_port_lock(timeout_ms); }
@@ -177,7 +181,7 @@ void OledDisplay::SetupUI_128x64() {
     auto icon_font = lvgl_theme->icon_font()->font();
     auto large_icon_font = lvgl_theme->large_icon_font()->font();
 
-    auto screen = lv_screen_active();
+    auto screen = lv_display_get_screen_active(display_);
     lv_obj_set_style_text_font(screen, text_font, 0);
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
@@ -312,7 +316,7 @@ void OledDisplay::SetupUI_128x32() {
     auto icon_font = lvgl_theme->icon_font()->font();
     auto large_icon_font = lvgl_theme->large_icon_font()->font();
 
-    auto screen = lv_screen_active();
+    auto screen = lv_display_get_screen_active(display_);
     lv_obj_set_style_text_font(screen, text_font, 0);
 
     /* Container */
@@ -484,7 +488,7 @@ void OledDisplay::SetTheme(Theme* theme) {
     auto lvgl_theme = static_cast<LvglTheme*>(theme);
     auto text_font = lvgl_theme->text_font()->font();
 
-    auto screen = lv_screen_active();
+    auto screen = lv_display_get_screen_active(display_);
     lv_obj_set_style_text_font(screen, text_font, 0);
 }
 

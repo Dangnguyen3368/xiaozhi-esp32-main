@@ -112,7 +112,8 @@ public:
     MochiDisplay(esp_lcd_panel_io_handle_t io_handle,
                  esp_lcd_panel_handle_t panel_handle,
                  int width, int height,
-                 bool mirror_x, bool mirror_y);
+                 bool mirror_x, bool mirror_y,
+                 bool secondary = false);
     ~MochiDisplay() override;
 
     // QUAN TRONG: KHONG duoc tao LVGL object trong constructor - man
