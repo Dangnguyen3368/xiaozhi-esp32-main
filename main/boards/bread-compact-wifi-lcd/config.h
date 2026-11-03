@@ -298,6 +298,16 @@
 #endif
 
 
+// Optional 1.3" SH1106 OLED (I2C) that shows the Mochi face next to the TFT.
+// Same pins as the OLED-only build. If nothing answers at 0x3C the board just runs without it.
+#define MOCHI_OLED_SDA_PIN GPIO_NUM_1
+#define MOCHI_OLED_SCL_PIN GPIO_NUM_2
+#define MOCHI_OLED_I2C_ADDR 0x3C
+#define MOCHI_OLED_WIDTH   128
+#define MOCHI_OLED_HEIGHT  64
+#define MOCHI_OLED_MIRROR_X false
+#define MOCHI_OLED_MIRROR_Y false
+
 // A MCP Test: Control a lamp
 #define LAMP_GPIO GPIO_NUM_38
 
