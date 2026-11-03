@@ -255,7 +255,7 @@ li{margin:6px 0}#st{color:#2e7d32;font-weight:bold}</style></head><body>
 <li><b>Hành động</b>: Kết nối/Web → <b>Yêu cầu HTTP</b>: phương thức <b>POST</b>, URL dán địa chỉ ở trên, nội dung (Body) kiểu text/plain: bấm nút chèn biến <b>[...]</b>, chọn <b>Tiêu đề thông báo</b> rồi <b>Nội dung thông báo</b>.</li>
 <li>Lưu macro. Điện thoại và robot phải cùng Wi-Fi nhà.</li></ol>
 <p>Nên đặt IP cố định cho robot trong modem (DHCP reservation) để địa chỉ không đổi.</p>
-<p>iPhone không đọc được thông báo app khác; chỉ dùng Phím tắt (Shortcuts) tự động với <b>tin nhắn SMS</b> của ngân hàng: Tự động hóa → Tin nhắn → chứa "VND" → Lấy nội dung URL (POST, văn bản = tin nhắn).</p>
+<p><b>iPhone</b> không đọc được thông báo của app khác, chỉ dùng được <b>SMS</b> (hoặc email) của ngân hàng: Phím tắt → Tự động hóa → Tin nhắn (người gửi là ngân hàng, hoặc chứa "VND") → Chạy ngay lập tức → tác vụ <b>Lấy nội dung của URL</b>: dán địa chỉ trên, Phương thức POST, Phần thân JSON, khóa <b>text</b> = Đầu vào phím tắt.</p>
 </body></html>)HTML";
 
 esp_err_t HandleSetup(httpd_req_t* req) {
