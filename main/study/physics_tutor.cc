@@ -509,7 +509,8 @@ int PhysicsTutor::PickProblem(const std::string& mode, int topic, int level, con
         // Spaced review: the most overdue problem first, then any other wrong one.
         pool = DueReviews(Current(), topic);
         if (!pool.empty()) {
-            pool.resize(1);
+            // erase, not resize(1): GCC 15 (riscv) reports a false -Warray-bounds on resize.
+            pool.erase(pool.begin() + 1, pool.end());
         } else {
             pool = Candidates(topic, level, false, true);
             if (pool.empty()) {
