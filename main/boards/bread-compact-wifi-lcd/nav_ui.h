@@ -105,6 +105,8 @@ private:
     // Map page.
     lv_obj_t* map_image_ = nullptr;
     lv_obj_t* map_speed_ = nullptr;
+    lv_obj_t* map_limit_ = nullptr;        // small speed limit sign
+    lv_obj_t* map_limit_label_ = nullptr;
     lv_obj_t* map_info_ = nullptr;
     lv_image_dsc_t map_dsc_ = {};
     std::vector<uint16_t> map_front_;  // shown by map_image_, written under the LVGL lock

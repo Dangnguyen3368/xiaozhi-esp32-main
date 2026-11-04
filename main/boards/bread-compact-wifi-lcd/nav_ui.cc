@@ -331,14 +331,17 @@ void SetCameraIconColor(lv_obj_t* icon, lv_color_t color) {
     }
 }
 
-// A video camera drawn from boxes, 60 x 36: green normally, blinking red near a camera.
+// A video camera drawn from boxes, 36 x 22: green normally, blinking red near a camera.
 lv_obj_t* CameraIcon(lv_obj_t* parent, lv_color_t red, lv_color_t dark) {
     lv_obj_t* icon = PlainBox(parent);
-    lv_obj_set_size(icon, 60, 36);
+    // Designed on a 60 x 36 grid, drawn at 3/5 size.
+    auto px = [](int value) { return (value * 3 + 2) / 5; };
+    lv_obj_set_size(icon, px(60), px(36));
     auto box = [&](int x, int y, int w, int h, lv_color_t color, int radius) {
         lv_obj_t* part = PlainBox(icon);
-        lv_obj_set_pos(part, x, y);
-        lv_obj_set_size(part, w, h);
+        lv_obj_set_pos(part, px(x), px(y));
+        lv_obj_set_size(part, std::max(2, px(w)), std::max(2, px(h)));
+        radius = radius == LV_RADIUS_CIRCLE ? radius : px(radius);
         lv_obj_set_style_bg_opa(part, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(part, color, 0);
         lv_obj_set_style_radius(part, radius, 0);
@@ -528,8 +531,10 @@ void DriveView::Build(Page page) {
                                     lv_color_hex(0x000000));
         }
 
+        alert_icon_ = CameraIcon(panel_, kCameraGreen, kDark);
+        lv_obj_set_pos(alert_icon_, 10 + sign + 10, sign_y + 2);
         camera_label_ = TextLabel(panel_, kWhite);
-        lv_obj_set_pos(camera_label_, 10 + sign + 10, sign_y + 8);
+        lv_obj_set_pos(camera_label_, 10 + sign + 10, sign_y + 28);
         lv_obj_set_width(camera_label_, width_ - sign - 30);
         lv_label_set_long_mode(camera_label_, LV_LABEL_LONG_WRAP);
 
@@ -564,13 +569,34 @@ void DriveView::Build(Page page) {
         lv_obj_remove_flag(map_image_, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_pos(map_image_, 0, 0);
 
-        map_speed_ = TextLabel(panel_, kWhite);
+        // Top row (left of the X button): speed or GPS state, limit sign, camera icon.
+        lv_obj_t* row = PlainBox(panel_);
+        lv_obj_set_pos(row, 6, 6);
+        lv_obj_set_size(row, width_ - 56, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(row, 6, 0);
+        lv_obj_set_style_pad_row(row, 4, 0);
+
+        map_speed_ = TextLabel(row, kWhite);
         lv_obj_set_style_bg_opa(map_speed_, LV_OPA_80, 0);
         lv_obj_set_style_bg_color(map_speed_, kDark, 0);
         lv_obj_set_style_radius(map_speed_, 8, 0);
         lv_obj_set_style_pad_hor(map_speed_, 6, 0);
         lv_obj_set_style_pad_ver(map_speed_, 2, 0);
-        lv_obj_set_pos(map_speed_, 6, 6);
+
+        map_limit_ = PlainBox(row);
+        lv_obj_set_size(map_limit_, 32, 32);
+        lv_obj_set_style_radius(map_limit_, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_opa(map_limit_, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(map_limit_, kWhite, 0);
+        lv_obj_set_style_border_width(map_limit_, 4, 0);
+        lv_obj_set_style_border_color(map_limit_, kRed, 0);
+        map_limit_label_ = lv_label_create(map_limit_);
+        lv_obj_set_style_text_color(map_limit_label_, lv_color_hex(0x000000), 0);
+        lv_obj_center(map_limit_label_);
+
+        alert_icon_ = CameraIcon(row, kCameraGreen, kDark);
 
         map_info_ = TextLabel(panel_, kWhite);
         lv_obj_set_style_bg_opa(map_info_, LV_OPA_70, 0);
@@ -598,8 +624,6 @@ void DriveView::Build(Page page) {
     lv_obj_set_style_border_color(panel_, kRed, 0);
     lv_obj_set_style_border_width(panel_, 6, 0);
     lv_obj_set_style_border_opa(panel_, LV_OPA_TRANSP, 0);
-    alert_icon_ = CameraIcon(panel_, kCameraGreen, kDark);
-    lv_obj_align(alert_icon_, LV_ALIGN_TOP_RIGHT, -10, page == Page::kSpeed ? 6 : 40);
     SetAlertLocked(status);
 
     lv_obj_t* close = study_ui::AddButton(panel_, "X", kGrey, [this]() { Hide(); }, handlers_);
@@ -617,20 +641,12 @@ void DriveView::UpdateSpeedPageLocked(const nav::Status& status) {
     }
     ShowNumber(limit_digits_, 3, status.limit_kmh > 0 ? status.limit_kmh : -1);
     if (status.camera_m >= 0) {
-        lv_label_set_text(camera_label_, ("CAMERA\n" + std::to_string(status.camera_m) + " m").c_str());
+        lv_label_set_text(camera_label_, ("Phía trước có\ncamera " + std::to_string(status.camera_m) + " m").c_str());
         lv_obj_set_style_text_color(camera_label_, kOrange, 0);
         lv_bar_set_value(camera_bar_, 700 - std::min(status.camera_m, 700), LV_ANIM_OFF);
         lv_obj_remove_flag(camera_bar_, LV_OBJ_FLAG_HIDDEN);
     } else {
-        std::string text;
-        if (status.road_limit_kmh > 0) {
-            text = "Biển đường";
-        } else if (status.limit_kmh > 0) {
-            text = "Tốc độ tự đặt";
-        } else {
-            text = "Chưa có giới hạn";
-        }
-        lv_label_set_text(camera_label_, text.c_str());
+        lv_label_set_text(camera_label_, "Không có\ncamera gần");
         lv_obj_set_style_text_color(camera_label_, kSoft, 0);
         lv_obj_add_flag(camera_bar_, LV_OBJ_FLAG_HIDDEN);
     }
@@ -650,6 +666,13 @@ void DriveView::UpdateMapLabelsLocked(const nav::Status& status) {
         speed += "  Camera " + std::to_string(status.camera_m) + " m";
     }
     lv_label_set_text(map_speed_, speed.c_str());
+    if (status.limit_kmh > 0) {
+        lv_label_set_text(map_limit_label_, std::to_string(status.limit_kmh).c_str());
+        lv_obj_center(map_limit_label_);
+        lv_obj_remove_flag(map_limit_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(map_limit_, LV_OBJ_FLAG_HIDDEN);
+    }
     lv_obj_set_style_bg_color(map_speed_, status.overspeed ? kRed : (status.camera_m >= 0 ? kOrange : kDark), 0);
     lv_label_set_text(map_info_, (map_message_.empty() ? std::string("Đang tải bản đồ...") : map_message_).c_str());
 }
