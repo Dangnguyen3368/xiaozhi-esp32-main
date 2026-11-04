@@ -194,10 +194,10 @@ private:
         const AppEntry practice = {app_icon::kSchool, 0x5E35B1, text("Luyện thi"), study.practice};
         const AppEntry drive = {app_icon::kCar, 0x00897B, text("Lái xe"),
                                 [this]() { drive_view_.Show(DriveView::Page::kSpeed); }};
-        std::vector<AppLauncher::Page> pages(2);
+        // Three pages: study, everyday apps, system.
+        std::vector<AppLauncher::Page> pages(3);
         pages[0].title = "Học tập";
         pages[0].apps = {
-            chat,
             practice,
             {app_icon::kReplay, 0xFB8C00, text("Ôn bài sai"), study.review},
             {app_icon::kFunctions, 0x00897B, text("Công thức"), [this]() { study_menu_->ShowFormulaTopics(); }},
@@ -206,6 +206,10 @@ private:
              []() { return std::string(StudyTimer::GetInstance().GetState().running ? "Dừng giờ" : "Hẹn giờ"); },
              study.toggle_pomodoro},
             {app_icon::kCamera, 0xE53935, text("Giải ảnh"), [this]() { study_menu_->ShowPhoto(); }},
+        };
+        pages[1].title = "Tiện ích";
+        pages[1].apps = {
+            chat,
             {app_icon::kRadio, 0xD81B60,
              [this]() { return std::string(internet_radio_ && internet_radio_->IsRunning() ? "Tắt nhạc" : "Radio"); },
              study.toggle_radio},
@@ -215,11 +219,11 @@ private:
             {app_icon::kComputer, 0x3949AB, text("Máy tính"), [this]() { study_menu_->ShowComputer(); }},
             {app_icon::kBank, 0x2E7D32, text("Ngân hàng"), [this]() { study_menu_->ShowBank(); }},
             drive,
-        };
-        pages[1].title = "Tiện ích";
-        pages[1].apps = {
             {app_icon::kCalendar, 0x1E88E5, text("Lịch"), [this]() { home_.ShowNow(1); }},
             {app_icon::kWeather, 0xFFA000, text("Thời tiết"), [this]() { home_.ShowNow(0); }},
+        };
+        pages[2].title = "Hệ thống";
+        pages[2].apps = {
             {app_icon::kWifi, 0x00897B, text("Wi-Fi"), study.wifi_setup},
             {app_icon::kTune, 0x546E7A, text("Cài đặt"), [this]() { control_center_->Show(); }},
             {app_icon::kInfo, 0x3949AB, text("Thông tin"), [this]() { control_center_->ShowInfo(); }},
