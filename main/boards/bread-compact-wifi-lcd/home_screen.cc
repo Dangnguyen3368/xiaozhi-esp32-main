@@ -1,0 +1,645 @@
+#include "home_screen.h"
+
+#include "application.h"
+#include "backlight.h"
+#include "board.h"
+#include "lunar_calendar.h"
+#include "settings.h"
+#include "study/study_timer.h"
+#include "study_ui.h"
+#include "weather.h"
+
+#include <esp_log.h>
+#include <esp_timer.h>
+
+#include <algorithm>
+#include <cstdio>
+#include <ctime>
+
+#define TAG "HomeScreen"
+
+std::atomic<int64_t> HomeScreen::last_activity_us_{0};
+std::atomic<bool> HomeScreen::music_active_{false};
+
+namespace {
+// The home screen appears after this long without chat, notifications or other screens.
+constexpr int64_t kIdleShowUs = 15LL * 1000 * 1000;
+constexpr int64_t kNightWakeUs = 10LL * 1000 * 1000;
+constexpr uint8_t kNightBrightness = 5;
+constexpr int kNightStartHour = 22;
+constexpr int kNightEndHour = 6;
+constexpr int kPages = 2;  // clock, calendar
+
+// Day theme: deep navy with bright text (the non-IPS panel washes out mid greys).
+const lv_color_t kDayBg = lv_color_hex(0x0B1020);
+const lv_color_t kDayOn = lv_color_hex(0xEAF4FF);
+const lv_color_t kDayOff = lv_color_hex(0x1A2335);
+const lv_color_t kDayText = lv_color_hex(0xFFFFFF);
+const lv_color_t kDaySub = lv_color_hex(0xC8D6E5);
+// Night theme: black with a dim amber clock.
+const lv_color_t kNightBg = lv_color_hex(0x000000);
+const lv_color_t kNightOn = lv_color_hex(0xFFA000);
+const lv_color_t kNightOff = lv_color_hex(0x140E00);
+const lv_color_t kNightText = lv_color_hex(0xB07000);
+const lv_color_t kAccent = lv_color_hex(0x42A5F5);
+const lv_color_t kSunday = lv_color_hex(0xFF7070);
+const lv_color_t kLunarFirst = lv_color_hex(0xFFB74D);
+
+// Segment bits a..g for 0-9.
+constexpr uint8_t kSegments[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
+constexpr uint8_t kDash = 0x40;
+
+const char* const kWeekdayLong[] = {"Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"};
+const char* const kWeekdayShort[] = {"CN", "T2", "T3", "T4", "T5", "T6", "T7"};
+
+lv_obj_t* Box(lv_obj_t* parent, int x, int y, int w, int h, lv_color_t color, int radius) {
+    lv_obj_t* obj = lv_obj_create(parent);
+    lv_obj_remove_style_all(obj);
+    lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_pos(obj, x, y);
+    lv_obj_set_size(obj, w, h);
+    lv_obj_set_style_bg_color(obj, color, 0);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(obj, radius, 0);
+    return obj;
+}
+
+lv_obj_t* Container(lv_obj_t* parent) {
+    lv_obj_t* obj = lv_obj_create(parent);
+    lv_obj_remove_style_all(obj);
+    lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(obj, LV_PCT(100), LV_PCT(100));
+    return obj;
+}
+
+lv_obj_t* Label(lv_obj_t* parent, int x, int y, int w, lv_color_t color) {
+    lv_obj_t* label = lv_label_create(parent);
+    lv_obj_set_pos(label, x, y);
+    if (w > 0) {
+        lv_obj_set_width(label, w);
+        lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
+    }
+    lv_obj_set_style_text_color(label, color, 0);
+    lv_label_set_text(label, "");
+    return label;
+}
+
+bool LocalTime(struct tm& tm_now) {
+    const time_t now = time(nullptr);
+    localtime_r(&now, &tm_now);
+    return tm_now.tm_year + 1900 >= 2024;  // the clock is set from the server at boot
+}
+
+// Small weather picture from simple shapes, inside a box of `size` pixels (drawn for 40).
+void DrawWeatherIcon(lv_obj_t* box, int code, int size) {
+    lv_obj_clean(box);
+    auto Box = [size](lv_obj_t* parent, int x, int y, int w, int h, lv_color_t color, int radius) {
+        const int r = radius == LV_RADIUS_CIRCLE ? radius : radius * size / 40;
+        return ::Box(parent, x * size / 40, y * size / 40, std::max(1, w * size / 40), std::max(1, h * size / 40),
+                     color, r);
+    };
+    const lv_color_t sun = lv_color_hex(0xFFC107);
+    const lv_color_t cloud = code >= 95 ? lv_color_hex(0x78849E) : lv_color_hex(0xDDE6F0);
+    const bool clear = code <= 1;
+    const bool partly = code == 1 || code == 2;
+    const bool rain = (code >= 51 && code <= 67) || (code >= 80 && code <= 82);
+    const bool storm = code >= 95;
+    if (clear && code == 0) {
+        Box(box, 8, 8, 24, 24, sun, LV_RADIUS_CIRCLE);
+        return;
+    }
+    if (partly) {
+        Box(box, 18, 2, 18, 18, sun, LV_RADIUS_CIRCLE);
+    }
+    Box(box, 4, 14, 18, 18, cloud, LV_RADIUS_CIRCLE);
+    Box(box, 13, 7, 22, 22, cloud, LV_RADIUS_CIRCLE);
+    Box(box, 4, 22, 32, 10, cloud, 5);
+    if (rain) {
+        const lv_color_t drop = lv_color_hex(0x4FC3F7);
+        for (int i = 0; i < 3; ++i) {
+            Box(box, 10 + i * 9, 34, 3, 6, drop, 1);
+        }
+    } else if (storm) {
+        Box(box, 18, 32, 4, 8, sun, 1);
+    }
+}
+}  // namespace
+
+void HomeScreen::NoteActivity() { last_activity_us_ = esp_timer_get_time(); }
+
+void HomeScreen::SetMusicActive(bool active) {
+    music_active_ = active;
+    NoteActivity();
+}
+
+void HomeScreen::SetEnabled(bool on) {
+    enabled_ = on;
+    Settings settings("home", true);
+    settings.SetBool("enabled", on);
+}
+
+void HomeScreen::SetNightMode(bool on) {
+    night_mode_ = on;
+    Settings settings("home", true);
+    settings.SetBool("night", on);
+}
+
+void HomeScreen::Start(Hooks hooks) {
+    if (started_) {
+        return;
+    }
+    started_ = true;
+    hooks_ = std::move(hooks);
+    Settings settings("home");
+    enabled_ = settings.GetBool("enabled", true);
+    night_mode_ = settings.GetBool("night", true);
+    lv_timer_create(OnTimer, 1000, this);
+}
+
+void HomeScreen::OnTimer(lv_timer_t* timer) { static_cast<HomeScreen*>(lv_timer_get_user_data(timer))->Tick(); }
+
+void HomeScreen::Tick() {
+    auto& app = Application::GetInstance();
+    const DeviceState state = app.GetDeviceState();
+    if (!built_) {
+        // Wait for the first idle state: by then the assets (and their text font) are loaded,
+        // so this long-lived screen never points at a font that is freed later.
+        if (state != kDeviceStateIdle) {
+            return;
+        }
+        Build();
+    }
+    if (const lv_font_t* font = study_ui::TextFont(); font != nullptr && font != font_) {
+        font_ = font;
+        lv_obj_set_style_text_font(root_, font_, 0);
+    }
+
+    const bool overlay = hooks_.overlay_shown && hooks_.overlay_shown();
+    if (state != kDeviceStateIdle || overlay) {
+        NoteActivity();
+    }
+    const int64_t now = esp_timer_get_time();
+    const bool want = enabled_ && state == kDeviceStateIdle && !music_active_ && !overlay &&
+                      now - last_activity_us_ >= kIdleShowUs;
+    if (want && !shown_) {
+        Show();
+    } else if (!want && shown_) {
+        Hide();
+    }
+    if (!shown_) {
+        return;
+    }
+
+    struct tm tm_now = {};
+    const bool valid = LocalTime(tm_now);
+    UpdateNight(night_mode_ && valid && (tm_now.tm_hour >= kNightStartHour || tm_now.tm_hour < kNightEndHour));
+    UpdateClock(false);
+    UpdateWeather();
+    if (page_ == 1 && valid && calendar_day_ != tm_now.tm_yday) {
+        BuildCalendarPage();
+    }
+}
+
+void HomeScreen::Build() {
+    built_ = true;
+    font_ = study_ui::TextFont();
+    root_ = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(root_);
+    lv_obj_remove_flag(root_, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(root_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(root_, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_opa(root_, LV_OPA_COVER, 0);
+    if (font_ != nullptr) {
+        lv_obj_set_style_text_font(root_, font_, 0);
+    }
+    lv_obj_add_flag(root_, LV_OBJ_FLAG_HIDDEN);
+
+    clock_page_ = Container(root_);
+    BuildClockPage();
+    ApplyColors();
+    ESP_LOGI(TAG, "Home screen ready");
+}
+
+HomeScreen::Digit HomeScreen::CreateDigit(lv_obj_t* parent, int x, int y, int w, int h, int t) {
+    Digit digit;
+    const int v = (h - 3 * t) / 2;  // vertical segment length
+    const int r = t / 2;
+    // a, b, c, d, e, f, g
+    digit.segments[0] = Box(parent, x + t + 1, y, w - 2 * t - 2, t, off_color_, r);
+    digit.segments[1] = Box(parent, x + w - t, y + t + 1, t, v - 2, off_color_, r);
+    digit.segments[2] = Box(parent, x + w - t, y + (h + t) / 2 + 1, t, v - 2, off_color_, r);
+    digit.segments[3] = Box(parent, x + t + 1, y + h - t, w - 2 * t - 2, t, off_color_, r);
+    digit.segments[4] = Box(parent, x, y + (h + t) / 2 + 1, t, v - 2, off_color_, r);
+    digit.segments[5] = Box(parent, x, y + t + 1, t, v - 2, off_color_, r);
+    digit.segments[6] = Box(parent, x + t + 1, y + (h - t) / 2, w - 2 * t - 2, t, off_color_, r);
+    return digit;
+}
+
+void HomeScreen::SetDigit(Digit& digit, int value) {
+    uint8_t bits = 0;
+    if (value >= 0 && value <= 9) {
+        bits = kSegments[value];
+    } else if (value == -1) {
+        bits = kDash;
+    }
+    for (int i = 0; i < 7; ++i) {
+        if (digit.segments[i] != nullptr) {
+            lv_obj_set_style_bg_color(digit.segments[i], (bits >> i) & 1 ? on_color_ : off_color_, 0);
+        }
+    }
+}
+
+// Laid out for the portrait 240x320 TFT of this board.
+void HomeScreen::BuildClockPage() {
+    date_label_ = Label(clock_page_, 8, 6, 140, kDayText);
+    lunar_label_ = Label(clock_page_, 140, 6, 94, kDaySub);
+    lv_obj_set_style_text_align(lunar_label_, LV_TEXT_ALIGN_RIGHT, 0);
+    text_labels_ = {date_label_};
+
+    constexpr int kW = 48, kH = 100, kT = 11, kY = 36, kX = 10;
+    const int xs[4] = {kX, kX + 54, kX + 118, kX + 172};
+    for (int i = 0; i < 4; ++i) {
+        clock_digits_[i] = CreateDigit(clock_page_, xs[i], kY, kW, kH, kT);
+    }
+    colon_[0] = Box(clock_page_, kX + 105, kY + 28, 8, 8, kDayOn, 3);
+    colon_[1] = Box(clock_page_, kX + 105, kY + 64, 8, 8, kDayOn, 3);
+    seconds_label_ = Label(clock_page_, kX + 200, kY + kH + 4, 0, kDaySub);
+    lv_obj_set_style_text_font(seconds_label_, LV_FONT_DEFAULT, 0);
+
+    weather_icon_ = lv_obj_create(clock_page_);
+    lv_obj_remove_style_all(weather_icon_);
+    lv_obj_remove_flag(weather_icon_, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_pos(weather_icon_, 8, 166);
+    lv_obj_set_size(weather_icon_, 40, 40);
+    temp_digits_[0] = CreateDigit(clock_page_, 56, 160, 26, 48, 6);
+    temp_digits_[1] = CreateDigit(clock_page_, 88, 160, 26, 48, 6);
+    degree_ = Box(clock_page_, 119, 160, 10, 10, kDayBg, LV_RADIUS_CIRCLE);
+    lv_obj_set_style_border_width(degree_, 2, 0);
+    weather_label_ = lv_label_create(clock_page_);  // two short lines: sky, then min-max
+    lv_obj_set_pos(weather_label_, 136, 162);
+    lv_obj_set_width(weather_label_, 100);
+    lv_label_set_long_mode(weather_label_, LV_LABEL_LONG_CLIP);
+    lv_label_set_text(weather_label_, "");
+    detail_label_ = Label(clock_page_, 8, 216, 226, kDaySub);
+    // Next three days: a small picture over "T5 20-25". The Menu button sits below them.
+    for (int i = 0; i < 3; ++i) {
+        forecast_icons_[i] = lv_obj_create(clock_page_);
+        lv_obj_remove_style_all(forecast_icons_[i]);
+        lv_obj_remove_flag(forecast_icons_[i], LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_pos(forecast_icons_[i], 6 + i * 78 + 27, 244);
+        lv_obj_set_size(forecast_icons_[i], 22, 22);
+        forecast_labels_[i] = Label(clock_page_, 6 + i * 78, 268, 76, kDaySub);
+        lv_obj_set_style_text_font(forecast_labels_[i], LV_FONT_DEFAULT, 0);
+        lv_obj_set_style_text_align(forecast_labels_[i], LV_TEXT_ALIGN_CENTER, 0);
+    }
+    text_labels_.push_back(weather_label_);
+}
+
+void HomeScreen::BuildCalendarPage() {
+    struct tm tm_now = {};
+    const bool valid = LocalTime(tm_now);
+    if (calendar_page_ != nullptr) {
+        lv_obj_delete(calendar_page_);
+        calendar_page_ = nullptr;
+    }
+    calendar_page_ = Container(root_);
+    if (page_ != 1) {
+        lv_obj_add_flag(calendar_page_, LV_OBJ_FLAG_HIDDEN);
+    }
+    const lv_color_t text = night_ ? kNightText : kDayText;
+    const lv_color_t sub = night_ ? kNightText : kDaySub;
+    if (!valid) {
+        lv_obj_t* label = Label(calendar_page_, 10, 140, 220, text);
+        lv_label_set_text(label, "Chưa có giờ từ máy chủ.");
+        calendar_day_ = -1;
+        return;
+    }
+    calendar_day_ = tm_now.tm_yday;
+    const int year = tm_now.tm_year + 1900;
+    const int month = tm_now.tm_mon + 1;
+    const auto today_lunar = lunar::FromSolar(tm_now.tm_mday, month, year);
+
+    char buffer[96];
+    lv_obj_t* title = Label(calendar_page_, 6, 4, 80, text);
+    snprintf(buffer, sizeof(buffer), "%d/%d", month, year);
+    lv_label_set_text(title, buffer);
+    lv_obj_t* lunar_title = Label(calendar_page_, 80, 4, 156, sub);
+    lv_obj_set_style_text_align(lunar_title, LV_TEXT_ALIGN_RIGHT, 0);
+    snprintf(buffer, sizeof(buffer), "Âm %d/%d%s %s", today_lunar.day, today_lunar.month, today_lunar.leap ? "n" : "",
+             lunar::YearName(today_lunar.year).c_str());
+    lv_label_set_text(lunar_title, buffer);
+
+    constexpr int kLeft = 3, kCellW = 33, kTop = 46, kBottom = 318;
+    for (int col = 0; col < 7; ++col) {
+        lv_obj_t* label = Label(calendar_page_, kLeft + col * kCellW, 28, kCellW, col == 6 ? kSunday : sub);
+        lv_obj_set_style_text_font(label, LV_FONT_DEFAULT, 0);
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_text(label, kWeekdayShort[(col + 1) % 7]);
+    }
+
+    // Monday-first grid.
+    struct tm first = tm_now;
+    first.tm_mday = 1;
+    first.tm_hour = 12;
+    mktime(&first);
+    const int lead = (first.tm_wday + 6) % 7;
+    static const int kDaysIn[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    int days = kDaysIn[month - 1];
+    if (month == 2 && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)) {
+        days = 29;
+    }
+    const int rows = (lead + days + 6) / 7;
+    const int cell_h = (kBottom - kTop) / rows;
+    for (int day = 1; day <= days; ++day) {
+        const int index = lead + day - 1;
+        const int col = index % 7;
+        const int row = index / 7;
+        const bool today = day == tm_now.tm_mday;
+        lv_obj_t* cell = Box(calendar_page_, kLeft + col * kCellW + 1, kTop + row * cell_h, kCellW - 2, cell_h - 2,
+                             today ? kAccent : (night_ ? kNightBg : kDayBg), 6);
+        lv_obj_t* solar = lv_label_create(cell);
+        snprintf(buffer, sizeof(buffer), "%d", day);
+        lv_label_set_text(solar, buffer);
+        lv_obj_set_style_text_color(solar, today ? lv_color_white() : (col == 6 ? kSunday : text), 0);
+        lv_obj_align(solar, LV_ALIGN_TOP_LEFT, 2, 2);
+
+        const auto lunar_day = lunar::FromSolar(day, month, year);
+        lv_obj_t* small = lv_label_create(cell);
+        lv_obj_set_style_text_font(small, LV_FONT_DEFAULT, 0);
+        if (lunar_day.day == 1) {
+            snprintf(buffer, sizeof(buffer), "%d/%d", lunar_day.day, lunar_day.month);
+        } else {
+            snprintf(buffer, sizeof(buffer), "%d", lunar_day.day);
+        }
+        lv_label_set_text(small, buffer);
+        lv_obj_set_style_text_color(small,
+                                    today ? lv_color_white() : (lunar_day.day == 1 || lunar_day.day == 15 ? kLunarFirst : sub),
+                                    0);
+        lv_obj_align(small, LV_ALIGN_BOTTOM_RIGHT, -2, -2);
+    }
+}
+
+void HomeScreen::Show() {
+    shown_ = true;
+    page_ = 0;
+    lv_obj_remove_flag(clock_page_, LV_OBJ_FLAG_HIDDEN);
+    if (calendar_page_ != nullptr) {
+        lv_obj_add_flag(calendar_page_, LV_OBJ_FLAG_HIDDEN);
+    }
+    UpdateClock(true);
+    weather_stamp_ = -1;
+    UpdateWeather();
+    ApplyColors();
+    lv_obj_remove_flag(root_, LV_OBJ_FLAG_HIDDEN);
+    if (hooks_.menu_button) {
+        hooks_.menu_button(true);
+    }
+}
+
+void HomeScreen::Hide() {
+    shown_ = false;
+    if (root_ != nullptr) {
+        lv_obj_add_flag(root_, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (calendar_page_ != nullptr) {
+        lv_obj_delete(calendar_page_);
+        calendar_page_ = nullptr;
+        calendar_day_ = -1;
+    }
+    UpdateNight(false);
+    if (hooks_.menu_button) {
+        hooks_.menu_button(false);
+    }
+}
+
+bool HomeScreen::HandleTap() {
+    if (!shown_) {
+        return false;
+    }
+    if (dimmed_) {
+        wake_until_us_ = esp_timer_get_time() + kNightWakeUs;
+        UpdateNight(night_);
+        return true;
+    }
+    return false;
+}
+
+void HomeScreen::Dismiss() {
+    NoteActivity();
+    if (shown_) {
+        Hide();
+    }
+}
+
+void HomeScreen::ChangePage(int delta) {
+    if (!shown_) {
+        return;
+    }
+    const int page = std::clamp(page_ + delta, 0, kPages - 1);
+    if (page == page_) {
+        return;
+    }
+    page_ = page;
+    if (page_ == 1) {
+        BuildCalendarPage();
+        lv_obj_add_flag(clock_page_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(calendar_page_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        if (calendar_page_ != nullptr) {
+            lv_obj_add_flag(calendar_page_, LV_OBJ_FLAG_HIDDEN);
+        }
+        lv_obj_remove_flag(clock_page_, LV_OBJ_FLAG_HIDDEN);
+    }
+    // The Menu button would cover the calendar's last cell; swipe up opens the menu there.
+    if (hooks_.menu_button) {
+        hooks_.menu_button(page_ == 0);
+    }
+    ApplyColors();
+}
+
+void HomeScreen::UpdateNight(bool night) {
+    if (night != night_) {
+        night_ = night;
+        ApplyColors();
+        if (page_ == 1) {
+            BuildCalendarPage();
+            lv_obj_remove_flag(calendar_page_, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    const bool dim = night_ && shown_ && esp_timer_get_time() >= wake_until_us_;
+    Backlight* backlight = Board::GetInstance().GetBacklight();
+    if (backlight == nullptr) {
+        return;
+    }
+    if (dim && !dimmed_) {
+        backlight->SetBrightness(kNightBrightness);
+        dimmed_ = true;
+    } else if (!dim && dimmed_) {
+        backlight->RestoreBrightness();
+        dimmed_ = false;
+    }
+}
+
+void HomeScreen::ApplyColors() {
+    if (root_ == nullptr) {
+        return;
+    }
+    on_color_ = night_ ? kNightOn : kDayOn;
+    off_color_ = night_ ? kNightOff : kDayOff;
+    const lv_color_t text = night_ ? kNightText : kDayText;
+    const lv_color_t sub = night_ ? kNightText : kDaySub;
+    lv_obj_set_style_bg_color(root_, night_ ? kNightBg : kDayBg, 0);
+    // At night only the date and clock show, so move them to the middle of the screen.
+    lv_obj_set_y(clock_page_, night_ ? 90 : 0);
+    for (lv_obj_t* label : text_labels_) {
+        lv_obj_set_style_text_color(label, text, 0);
+    }
+    for (lv_obj_t* label : {lunar_label_, seconds_label_, detail_label_}) {
+        lv_obj_set_style_text_color(label, sub, 0);
+    }
+    for (lv_obj_t* label : forecast_labels_) {
+        lv_obj_set_style_text_color(label, sub, 0);
+    }
+    for (lv_obj_t* dot : colon_) {
+        lv_obj_set_style_bg_color(dot, on_color_, 0);
+    }
+    lv_obj_set_style_bg_color(degree_, night_ ? kNightBg : kDayBg, 0);
+    lv_obj_set_style_border_color(degree_, on_color_, 0);
+    // At night only the clock stays; the weather would be too bright.
+    for (lv_obj_t* obj : {weather_icon_, degree_, weather_label_, detail_label_, forecast_labels_[0],
+                          forecast_labels_[1], forecast_labels_[2], forecast_icons_[0], forecast_icons_[1],
+                          forecast_icons_[2]}) {
+        if (night_) {
+            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_remove_flag(obj, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    for (auto& digit : temp_digits_) {
+        for (lv_obj_t* segment : digit.segments) {
+            if (night_) {
+                lv_obj_add_flag(segment, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                lv_obj_remove_flag(segment, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+    }
+    UpdateClock(true);
+    weather_stamp_ = -1;
+    UpdateWeather();
+}
+
+void HomeScreen::UpdateClock(bool force) {
+    if (clock_page_ == nullptr) {
+        return;
+    }
+    struct tm tm_now = {};
+    const bool valid = LocalTime(tm_now);
+    const bool colon_on = !valid || tm_now.tm_sec % 2 == 0;
+    for (lv_obj_t* dot : colon_) {
+        lv_obj_set_style_bg_color(dot, colon_on ? on_color_ : off_color_, 0);
+    }
+    char buffer[96];
+    if (valid) {
+        snprintf(buffer, sizeof(buffer), "%02d", tm_now.tm_sec);
+        lv_label_set_text(seconds_label_, buffer);
+    } else {
+        lv_label_set_text(seconds_label_, "");
+    }
+
+    // The right-hand corner shows the Pomodoro countdown while it runs.
+    const auto pomodoro = StudyTimer::GetInstance().GetState();
+    if (pomodoro.running) {
+        snprintf(buffer, sizeof(buffer), "%s %02d:%02d", pomodoro.on_break ? "Nghỉ" : "Học",
+                 pomodoro.remaining_seconds / 60, pomodoro.remaining_seconds % 60);
+        lv_label_set_text(lunar_label_, buffer);
+    } else if (pomodoro_shown_) {
+        force = true;  // put the lunar date back
+    }
+    pomodoro_shown_ = pomodoro.running;
+
+    const int minute = valid ? tm_now.tm_hour * 60 + tm_now.tm_min : -2;
+    if (!force && minute == shown_minute_) {
+        return;
+    }
+    shown_minute_ = minute;
+    if (!valid) {
+        for (auto& digit : clock_digits_) {
+            SetDigit(digit, -1);
+        }
+        lv_label_set_text(date_label_, "Đang lấy giờ...");
+        if (!pomodoro.running) {
+            lv_label_set_text(lunar_label_, "");
+        }
+        return;
+    }
+    SetDigit(clock_digits_[0], tm_now.tm_hour / 10);
+    SetDigit(clock_digits_[1], tm_now.tm_hour % 10);
+    SetDigit(clock_digits_[2], tm_now.tm_min / 10);
+    SetDigit(clock_digits_[3], tm_now.tm_min % 10);
+    snprintf(buffer, sizeof(buffer), "%s, %02d/%02d", kWeekdayLong[tm_now.tm_wday], tm_now.tm_mday,
+             tm_now.tm_mon + 1);
+    lv_label_set_text(date_label_, buffer);
+    if (!pomodoro.running) {
+        const auto lunar_date = lunar::FromSolar(tm_now.tm_mday, tm_now.tm_mon + 1, tm_now.tm_year + 1900);
+        snprintf(buffer, sizeof(buffer), "Âm %d/%d%s", lunar_date.day, lunar_date.month, lunar_date.leap ? "n" : "");
+        lv_label_set_text(lunar_label_, buffer);
+    }
+}
+
+void HomeScreen::UpdateWeather() {
+    if (weather_label_ == nullptr) {
+        return;
+    }
+    const Weather::Snapshot weather = Weather::GetInstance().Get();
+    const int64_t stamp = weather.valid ? weather.fetched_us : 0;
+    if (stamp == weather_stamp_) {
+        return;
+    }
+    weather_stamp_ = stamp;
+    if (!weather.valid) {
+        lv_obj_clean(weather_icon_);
+        SetDigit(temp_digits_[0], -1);
+        SetDigit(temp_digits_[1], -1);
+        lv_label_set_text(weather_label_, "Đang tải thời tiết...");
+        lv_label_set_text(detail_label_, "");
+        for (size_t i = 0; i < forecast_labels_.size(); ++i) {
+            lv_label_set_text(forecast_labels_[i], "");
+            lv_obj_clean(forecast_icons_[i]);
+        }
+        return;
+    }
+    DrawWeatherIcon(weather_icon_, weather.code, 40);
+    const int temperature = std::clamp(static_cast<int>(weather.temperature + (weather.temperature >= 0 ? 0.5f : -0.5f)), -9, 99);
+    if (temperature < 0) {
+        SetDigit(temp_digits_[0], -1);
+        SetDigit(temp_digits_[1], -temperature);
+    } else {
+        SetDigit(temp_digits_[0], temperature >= 10 ? temperature / 10 : -2);
+        SetDigit(temp_digits_[1], temperature % 10);
+    }
+    char buffer[96];
+    if (!weather.days.empty()) {
+        snprintf(buffer, sizeof(buffer), "%s\n%d-%d", Weather::Describe(weather.code), weather.days[0].t_min,
+                 weather.days[0].t_max);
+    } else {
+        snprintf(buffer, sizeof(buffer), "%s", Weather::Describe(weather.code));
+    }
+    lv_label_set_text(weather_label_, buffer);
+    snprintf(buffer, sizeof(buffer), "Ẩm %d%% · gió %d km/h", weather.humidity,
+             static_cast<int>(weather.wind_kmh + 0.5f));
+    lv_label_set_text(detail_label_, buffer);
+    for (size_t i = 0; i < forecast_labels_.size(); ++i) {
+        if (i + 1 < weather.days.size()) {
+            const auto& day = weather.days[i + 1];
+            snprintf(buffer, sizeof(buffer), "%s %d-%d", kWeekdayShort[day.weekday % 7], day.t_min, day.t_max);
+            lv_label_set_text(forecast_labels_[i], buffer);
+            DrawWeatherIcon(forecast_icons_[i], day.code, 22);
+        } else {
+            lv_label_set_text(forecast_labels_[i], "");
+            lv_obj_clean(forecast_icons_[i]);
+        }
+    }
+}

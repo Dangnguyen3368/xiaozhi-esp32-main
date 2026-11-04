@@ -951,6 +951,18 @@ void DriveButton::Create(std::function<void()> on_click) {
     // LVGL's built-in font, like the Menu button: the theme font is swapped after boot.
     lv_obj_align(button, LV_ALIGN_BOTTOM_LEFT, kMargin, -kMargin);
     lv_obj_move_to_index(button, 0);
+    button_ = button;
+}
+
+void DriveButton::SetOnTop(bool on_top) {
+    if (button_ == nullptr) {
+        return;
+    }
+    if (on_top) {
+        lv_obj_move_foreground(button_);
+    } else {
+        lv_obj_move_to_index(button_, 0);
+    }
 }
 
 bool DriveButton::Contains(int x, int y, int screen_width, int screen_height) {

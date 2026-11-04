@@ -127,8 +127,11 @@ public:
     // Call with the LVGL lock held, after the display exists.
     void Create(std::function<void()> on_click);
     static bool Contains(int x, int y, int screen_width, int screen_height);
+    // Above the home screen, or back beneath later overlays. Call with the LVGL lock held.
+    void SetOnTop(bool on_top);
 
 private:
+    lv_obj_t* button_ = nullptr;
     std::vector<std::unique_ptr<std::function<void()>>> handlers_;
 };
 

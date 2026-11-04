@@ -91,8 +91,12 @@ public:
     void Create(std::function<void()> on_click);
     // True when a touch at (x, y) lands on the button (with a little slack).
     static bool Contains(int x, int y, int screen_width, int screen_height);
+    // On top of everything (over the home screen), or back beneath later overlays. Call with
+    // the LVGL lock held.
+    void SetOnTop(bool on_top);
 
 private:
+    lv_obj_t* button_ = nullptr;
     std::vector<std::unique_ptr<std::function<void()>>> handlers_;
 };
 

@@ -15,6 +15,9 @@
 #include "nav/nav_assistant.h"
 #include "study_ui.h"
 #include "wifi_setup_view.h"
+#include "home_screen.h"
+#include "control_center.h"
+#include "weather.h"
 #include "study/study_timer.h"
 #include "study/firmware_update.h"
 #include "assets/lang_config.h"
@@ -98,11 +101,13 @@ private:
     DriveButton drive_button_;
     MenuButton menu_button_;
     std::unique_ptr<WifiSetupView> wifi_setup_;
+    HomeScreen home_;
+    std::unique_ptr<ControlCenter> control_center_;
 
     bool AnyOverlayShown() const {
         return figure_view_.IsShown() || progress_view_.IsShown() || (study_menu_ && study_menu_->IsShown()) ||
                (wifi_setup_ && wifi_setup_->IsShown()) || nav_setup_.IsShown() ||
-               drive_view_.IsShown();
+               drive_view_.IsShown() || (control_center_ && control_center_->IsShown());
     }
 
     // The server ignores text sent as a wake phrase in the middle of a chat, so the problem is
@@ -168,6 +173,7 @@ private:
         actions.local_music_running = [this]() { return internet_radio_ && internet_radio_->IsLocal(); };
         study_menu_ = std::make_unique<StudyMenu>(std::move(actions));
         wifi_setup_ = std::make_unique<WifiSetupView>([this]() { EnterWifiConfigMode(); });
+        control_center_ = std::make_unique<ControlCenter>(home_, [this]() { wifi_setup_->Start(); });
     }
 
     // Same action as the BOOT button: stop the radio if it plays, otherwise toggle chat.
@@ -322,7 +328,37 @@ private:
                 DriveButton::Contains(x, y, DISPLAY_WIDTH, DISPLAY_HEIGHT)) {
                 return;
             }
+            // At night the first tap only lights the dimmed clock up.
+            if (home_.HandleTap()) {
+                return;
+            }
+            home_.Dismiss();
             Application::GetInstance().Schedule([this]() { ToggleChatOrStopRadio(); });
+        });
+        // Swipe down: control center (on the chat screen only from the top edge, so the chat
+        // can still be scrolled). Swipe up: menu. Left/right: home screen pages.
+        touch_->OnSwipe([this](Xpt2046Touch::Swipe swipe, int x, int y) {
+            if (AnyOverlayShown() || !study_menu_) {
+                return;
+            }
+            switch (swipe) {
+                case Xpt2046Touch::Swipe::kDown:
+                    if (home_.IsShown() || y < 60) {
+                        Application::GetInstance().Schedule([this]() { control_center_->Show(); });
+                    }
+                    break;
+                case Xpt2046Touch::Swipe::kUp:
+                    if (home_.IsShown() || y > DISPLAY_HEIGHT - 80) {
+                        Application::GetInstance().Schedule([this]() { study_menu_->Show(); });
+                    }
+                    break;
+                case Xpt2046Touch::Swipe::kLeft:
+                    home_.ChangePage(1);
+                    break;
+                case Xpt2046Touch::Swipe::kRight:
+                    home_.ChangePage(-1);
+                    break;
+            }
         });
         touch_->OnLongPress([this]() {
             if (AnyOverlayShown() || !study_menu_) {
@@ -478,6 +514,7 @@ private:
         });
         timer.RegisterTool();
         FirmwareUpdate::GetInstance().RegisterTool();
+        Weather::GetInstance().RegisterTools();
         PcControl::GetInstance().RegisterTool();
         photo_solver::RegisterTool();
         photo_solver::SetSolutionViewer([this](const std::string& text) {
@@ -551,6 +588,14 @@ private:
                     drive_view_.Show(DriveView::Page::kSpeed);
                 }
             });
+            HomeScreen::Hooks hooks;
+            hooks.overlay_shown = [this]() { return AnyOverlayShown(); };
+            hooks.menu_button = [this](bool on_top) {
+                menu_button_.SetOnTop(on_top);
+                drive_button_.SetOnTop(on_top);
+            };
+            home_.Start(std::move(hooks));
+            Weather::GetInstance().Start();
         });
     }
 

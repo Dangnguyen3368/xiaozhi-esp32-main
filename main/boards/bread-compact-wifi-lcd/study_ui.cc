@@ -536,6 +536,18 @@ void MenuButton::Create(std::function<void()> on_click) {
     lv_obj_align(button, LV_ALIGN_BOTTOM_RIGHT, -kMargin, -kMargin);
     // Overlays opened later sit above it, so it never covers their buttons.
     lv_obj_move_to_index(button, 0);
+    button_ = button;
+}
+
+void MenuButton::SetOnTop(bool on_top) {
+    if (button_ == nullptr) {
+        return;
+    }
+    if (on_top) {
+        lv_obj_move_foreground(button_);
+    } else {
+        lv_obj_move_to_index(button_, 0);
+    }
 }
 
 bool MenuButton::Contains(int x, int y, int screen_width, int screen_height) {

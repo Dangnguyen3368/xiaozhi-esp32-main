@@ -24,6 +24,9 @@ constexpr int64_t kMinTapGapUs = 400 * 1000;
 constexpr int64_t kLongPressUs = 1000 * 1000;
 // Screen pixels a finger may drift during a tap or long press before it counts as a slide.
 constexpr int kMoveThreshold = 15;
+// A swipe covers at least this many pixels along its main direction within kMaxSwipeUs.
+constexpr int kSwipeDistance = 60;
+constexpr int64_t kMaxSwipeUs = 1200 * 1000;
 }  // namespace
 
 Xpt2046Touch::Xpt2046Touch(spi_host_device_t host, gpio_num_t cs, gpio_num_t irq, int width,
@@ -139,6 +142,15 @@ void Xpt2046Touch::ReadCallback(lv_indev_t* indev, lv_indev_data_t* data) {
             now - self->last_tap_us_ > kMinTapGapUs) {
             self->last_tap_us_ = now;
             self->on_tap_(self->last_x_, self->last_y_);
+        } else if (self->on_swipe_ && self->moved_ && !self->long_fired_ &&
+                   now - self->press_start_us_ < kMaxSwipeUs) {
+            const int dx = self->last_x_ - self->press_start_x_;
+            const int dy = self->last_y_ - self->press_start_y_;
+            if (std::abs(dx) >= kSwipeDistance && std::abs(dx) > 2 * std::abs(dy)) {
+                self->on_swipe_(dx < 0 ? Swipe::kLeft : Swipe::kRight, self->press_start_x_, self->press_start_y_);
+            } else if (std::abs(dy) >= kSwipeDistance && std::abs(dy) > 2 * std::abs(dx)) {
+                self->on_swipe_(dy < 0 ? Swipe::kUp : Swipe::kDown, self->press_start_x_, self->press_start_y_);
+            }
         }
     }
     data->point.x = self->last_x_;
