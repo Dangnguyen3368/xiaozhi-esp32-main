@@ -235,19 +235,18 @@ bool Weather::SetPlace(const std::string& city, std::string& message) {
 
 void Weather::RegisterTools() {
     auto& mcp = McpServer::GetInstance();
-    mcp.AddTool("self.weather.set_place",
-                "Set the city whose weather the robot's home screen shows (e.g. 'Hà Nội', 'Thanh Hóa'). "
-                "Use when the user asks to change the weather location.",
-                PropertyList({Property("city", kPropertyTypeString)}),
-                [this](const PropertyList& properties) -> ReturnValue {
-                    std::string message;
-                    SetPlace(properties["city"].value<std::string>(), message);
-                    return message;
-                });
     mcp.AddTool("self.weather.get",
-                "Get the current weather and the next days' forecast for the robot's place "
-                "(the one shown on its home screen). Use when the user asks about the weather here.",
-                PropertyList(), [this](const PropertyList&) -> ReturnValue {
+                "Weather for the robot's place (the one shown on its home screen): current weather and "
+                "the next days' forecast. Use when the user asks about the weather here. To change the "
+                "place (e.g. 'Hà Nội', 'Thanh Hóa'), pass it as `set_place`; leave it empty otherwise.",
+                PropertyList({Property("set_place", kPropertyTypeString, std::string(""))}),
+                [this](const PropertyList& properties) -> ReturnValue {
+                    const std::string place = properties["set_place"].value<std::string>();
+                    if (!place.empty()) {
+                        std::string message;
+                        SetPlace(place, message);
+                        return message;
+                    }
                     const Snapshot s = Get();
                     if (!s.valid) {
                         RefreshSoon();
