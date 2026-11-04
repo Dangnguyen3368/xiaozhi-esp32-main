@@ -176,10 +176,10 @@ void NavSetupView::Hide() {
 namespace {
 const lv_color_t kDark = lv_color_hex(0x111111);
 const lv_color_t kWhite = lv_color_hex(0xFFFFFF);
-const lv_color_t kSoft = lv_color_hex(0xBBBBBB);
+const lv_color_t kSoft = lv_color_hex(0xEEEEEE);
 const lv_color_t kOrange = lv_color_hex(kOrangeHex);
 const lv_color_t kRed = lv_color_hex(kRedHex);
-const lv_color_t kGreenText = lv_color_hex(0x9CCC65);
+const lv_color_t kGreenText = lv_color_hex(0xC5F56A);
 constexpr int kTile = 256;
 constexpr int kMinZoom = 12;
 constexpr int kMaxZoom = 18;
