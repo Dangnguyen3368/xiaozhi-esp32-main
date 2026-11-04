@@ -1,4 +1,4 @@
-# Màn hình chính, chế độ đêm và bảng điều khiển (màn TFT 2,8")
+# Màn hình chính, chế độ đêm và bảng điều khiển (màn TFT 2,8" dọc 240x320)
 
 ![Xem trước](img/man-hinh-chinh.png)
 

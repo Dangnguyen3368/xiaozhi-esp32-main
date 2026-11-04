@@ -118,13 +118,14 @@ void ControlCenter::OnSliderReleased(lv_event_t* e) {
 lv_obj_t* ControlCenter::AddSliderRow(const char* name, int value, int min, int kind) {
     lv_obj_t* row = Row(panel_);
     lv_obj_t* label = lv_label_create(row);
-    lv_obj_set_width(label, LV_PCT(38));
+    lv_obj_set_width(label, LV_PCT(100));
     lv_obj_set_style_text_color(label, kInk, 0);
     SliderText(label, name, value);
     lv_obj_t* slider = lv_slider_create(row);
-    lv_obj_set_width(slider, LV_PCT(55));
+    lv_obj_set_width(slider, LV_PCT(88));
     lv_obj_set_height(slider, 14);
-    lv_obj_set_style_margin_right(slider, 10, 0);  // room for the knob
+    lv_obj_set_style_margin_left(slider, 12, 0);  // room for the knob
+    lv_obj_set_style_margin_bottom(slider, 6, 0);
     lv_slider_set_range(slider, min, 100);
     lv_slider_set_value(slider, value, LV_ANIM_OFF);
     lv_obj_set_user_data(slider, reinterpret_cast<void*>(kind));
@@ -153,7 +154,7 @@ void ControlCenter::Show() {
     lv_obj_t* grid = Row(panel_);
     auto add = [&](const std::string& text, lv_color_t color, std::function<void()> action) {
         lv_obj_t* button = study_ui::AddButton(grid, text, color, std::move(action), handlers_);
-        lv_obj_set_size(button, LV_PCT(48), 36);
+        lv_obj_set_size(button, LV_PCT(48), 44);
         if (lv_obj_t* label = lv_obj_get_child(button, 0)) {
             lv_obj_set_width(label, LV_PCT(100));
             lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
