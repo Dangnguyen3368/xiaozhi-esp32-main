@@ -1,12 +1,15 @@
 #ifndef HOME_SCREEN_H
 #define HOME_SCREEN_H
 
+#include "app_launcher.h"
+
 #include <lvgl.h>
 
 #include <array>
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -22,7 +25,10 @@ class HomeScreen {
 public:
     struct Hooks {
         std::function<bool()> overlay_shown;           // a menu or study screen is open
-        std::function<void(bool on_top)> menu_button;  // keep the Menu button above the home screen
+        // Called with true while the home screen shows (its dock replaces the floating Menu
+        // and GPS buttons), false when it hides.
+        std::function<void(bool home_shown)> floating_buttons;
+        std::vector<AppEntry> dock;  // up to 4 apps along the bottom of the clock page
     };
 
     // Call with the LVGL lock held.
@@ -34,6 +40,10 @@ public:
     void Dismiss();
     // Swipe left/right: next or previous page.
     void ChangePage(int delta);
+    // Shows the home screen now on `page` (0 clock, 1 calendar), e.g. from the app grid.
+    void ShowNow(int page);
+    // True when (x, y) falls on the dock, whose icons handle their own taps.
+    bool DockContains(int x, int y) const;
 
     bool enabled() const { return enabled_; }
     bool night_mode() const { return night_mode_; }
@@ -47,10 +57,6 @@ public:
     static void SetMusicActive(bool active);
 
 private:
-    struct Digit {
-        std::array<lv_obj_t*, 7> segments{};
-    };
-
     static void OnTimer(lv_timer_t* timer);
     void Tick();
     void Build();
@@ -62,8 +68,6 @@ private:
     void UpdateWeather();
     void UpdateNight(bool night);
     void ApplyColors();
-    void SetDigit(Digit& digit, int value);
-    Digit CreateDigit(lv_obj_t* parent, int x, int y, int w, int h, int t);
 
     Hooks hooks_;
     bool started_ = false;
@@ -84,17 +88,18 @@ private:
     // Clock page widgets.
     lv_obj_t* date_label_ = nullptr;
     lv_obj_t* lunar_label_ = nullptr;
-    std::array<Digit, 4> clock_digits_{};
-    std::array<lv_obj_t*, 2> colon_{};
+    std::array<lv_obj_t*, 4> clock_digits_{};  // one label per digit, so digits never shift
+    lv_obj_t* colon_ = nullptr;
     lv_obj_t* seconds_label_ = nullptr;
     lv_obj_t* weather_icon_ = nullptr;
-    std::array<Digit, 2> temp_digits_{};
-    lv_obj_t* degree_ = nullptr;
+    lv_obj_t* temp_label_ = nullptr;
     lv_obj_t* weather_label_ = nullptr;
     lv_obj_t* detail_label_ = nullptr;
     std::array<lv_obj_t*, 3> forecast_labels_{};
     std::array<lv_obj_t*, 3> forecast_icons_{};
     std::vector<lv_obj_t*> text_labels_;  // recoloured at night
+    lv_obj_t* dock_ = nullptr;
+    std::vector<std::unique_ptr<std::function<void()>>> dock_handlers_;
 
     int shown_minute_ = -1;
     bool pomodoro_shown_ = false;

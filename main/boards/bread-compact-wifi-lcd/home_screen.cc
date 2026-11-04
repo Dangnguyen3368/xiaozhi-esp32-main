@@ -4,12 +4,17 @@
 #include "backlight.h"
 #include "board.h"
 #include "lunar_calendar.h"
+#include "app_icons.h"
+
+LV_FONT_DECLARE(font_clock_86);
+LV_FONT_DECLARE(font_clock_40);
 #include "settings.h"
 #include "study/study_timer.h"
 #include "study_ui.h"
 #include "weather.h"
 
 #include <esp_log.h>
+#include <esp_lvgl_port.h>
 #include <esp_timer.h>
 
 #include <algorithm>
@@ -29,6 +34,9 @@ constexpr uint8_t kNightBrightness = 5;
 constexpr int kNightStartHour = 22;
 constexpr int kNightEndHour = 6;
 constexpr int kPages = 2;  // clock, calendar
+// The dock of app icons along the bottom of the clock page.
+constexpr int kDockY = 252;
+constexpr int kDockTile = 50;
 
 // Day theme: deep navy with bright text (the non-IPS panel washes out mid greys).
 const lv_color_t kDayBg = lv_color_hex(0x0B1020);
@@ -45,9 +53,6 @@ const lv_color_t kAccent = lv_color_hex(0x42A5F5);
 const lv_color_t kSunday = lv_color_hex(0xFF7070);
 const lv_color_t kLunarFirst = lv_color_hex(0xFFB74D);
 
-// Segment bits a..g for 0-9.
-constexpr uint8_t kSegments[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
-constexpr uint8_t kDash = 0x40;
 
 const char* const kWeekdayLong[] = {"Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"};
 const char* const kWeekdayShort[] = {"CN", "T2", "T3", "T4", "T5", "T6", "T7"};
@@ -222,79 +227,79 @@ void HomeScreen::Build() {
     ESP_LOGI(TAG, "Home screen ready");
 }
 
-HomeScreen::Digit HomeScreen::CreateDigit(lv_obj_t* parent, int x, int y, int w, int h, int t) {
-    Digit digit;
-    const int v = (h - 3 * t) / 2;  // vertical segment length
-    const int r = t / 2;
-    // a, b, c, d, e, f, g
-    digit.segments[0] = Box(parent, x + t + 1, y, w - 2 * t - 2, t, off_color_, r);
-    digit.segments[1] = Box(parent, x + w - t, y + t + 1, t, v - 2, off_color_, r);
-    digit.segments[2] = Box(parent, x + w - t, y + (h + t) / 2 + 1, t, v - 2, off_color_, r);
-    digit.segments[3] = Box(parent, x + t + 1, y + h - t, w - 2 * t - 2, t, off_color_, r);
-    digit.segments[4] = Box(parent, x, y + (h + t) / 2 + 1, t, v - 2, off_color_, r);
-    digit.segments[5] = Box(parent, x, y + t + 1, t, v - 2, off_color_, r);
-    digit.segments[6] = Box(parent, x + t + 1, y + (h - t) / 2, w - 2 * t - 2, t, off_color_, r);
-    return digit;
-}
-
-void HomeScreen::SetDigit(Digit& digit, int value) {
-    uint8_t bits = 0;
-    if (value >= 0 && value <= 9) {
-        bits = kSegments[value];
-    } else if (value == -1) {
-        bits = kDash;
-    }
-    for (int i = 0; i < 7; ++i) {
-        if (digit.segments[i] != nullptr) {
-            lv_obj_set_style_bg_color(digit.segments[i], (bits >> i) & 1 ? on_color_ : off_color_, 0);
-        }
-    }
-}
-
-// Laid out for the portrait 240x320 TFT of this board.
+// Laid out for the portrait 240x320 TFT of this board: date, clock, weather, forecast and a
+// dock of four app icons.
 void HomeScreen::BuildClockPage() {
-    date_label_ = Label(clock_page_, 8, 6, 140, kDayText);
-    lunar_label_ = Label(clock_page_, 140, 6, 94, kDaySub);
+    date_label_ = Label(clock_page_, 8, 4, 140, kDayText);
+    lunar_label_ = Label(clock_page_, 140, 4, 94, kDaySub);
     lv_obj_set_style_text_align(lunar_label_, LV_TEXT_ALIGN_RIGHT, 0);
     text_labels_ = {date_label_};
 
-    constexpr int kW = 48, kH = 100, kT = 11, kY = 36, kX = 10;
-    const int xs[4] = {kX, kX + 54, kX + 118, kX + 172};
+    // Big solid digits (Inter Display), each centred in its own cell so the clock never shifts.
+    constexpr int kCell = 54, kColon = 22, kY = 18, kX = 3;
+    const int xs[4] = {kX, kX + kCell, kX + 2 * kCell + kColon, kX + 3 * kCell + kColon};
     for (int i = 0; i < 4; ++i) {
-        clock_digits_[i] = CreateDigit(clock_page_, xs[i], kY, kW, kH, kT);
+        clock_digits_[i] = lv_label_create(clock_page_);
+        lv_obj_set_style_text_font(clock_digits_[i], &font_clock_86, 0);
+        lv_obj_set_style_text_align(clock_digits_[i], LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_width(clock_digits_[i], kCell);
+        lv_obj_set_pos(clock_digits_[i], xs[i], kY);
+        lv_label_set_text(clock_digits_[i], "-");
     }
-    colon_[0] = Box(clock_page_, kX + 105, kY + 28, 8, 8, kDayOn, 3);
-    colon_[1] = Box(clock_page_, kX + 105, kY + 64, 8, 8, kDayOn, 3);
-    seconds_label_ = Label(clock_page_, kX + 200, kY + kH + 4, 0, kDaySub);
+    colon_ = lv_label_create(clock_page_);
+    lv_obj_set_style_text_font(colon_, &font_clock_86, 0);
+    lv_obj_set_style_text_align(colon_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(colon_, kColon);
+    lv_obj_set_pos(colon_, kX + 2 * kCell, kY - 6);
+    lv_label_set_text(colon_, ":");
+    seconds_label_ = Label(clock_page_, 214, 108, 0, kDaySub);
     lv_obj_set_style_text_font(seconds_label_, LV_FONT_DEFAULT, 0);
 
     weather_icon_ = lv_obj_create(clock_page_);
     lv_obj_remove_style_all(weather_icon_);
     lv_obj_remove_flag(weather_icon_, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_pos(weather_icon_, 8, 166);
+    lv_obj_set_pos(weather_icon_, 8, 132);
     lv_obj_set_size(weather_icon_, 40, 40);
-    temp_digits_[0] = CreateDigit(clock_page_, 56, 160, 26, 48, 6);
-    temp_digits_[1] = CreateDigit(clock_page_, 88, 160, 26, 48, 6);
-    degree_ = Box(clock_page_, 119, 160, 10, 10, kDayBg, LV_RADIUS_CIRCLE);
-    lv_obj_set_style_border_width(degree_, 2, 0);
+    temp_label_ = lv_label_create(clock_page_);
+    lv_obj_set_style_text_font(temp_label_, &font_clock_40, 0);
+    lv_obj_set_pos(temp_label_, 54, 126);
+    lv_label_set_text(temp_label_, "");
     weather_label_ = lv_label_create(clock_page_);  // two short lines: sky, then min-max
-    lv_obj_set_pos(weather_label_, 136, 162);
-    lv_obj_set_width(weather_label_, 100);
+    lv_obj_set_pos(weather_label_, 128, 128);
+    lv_obj_set_width(weather_label_, 108);
     lv_label_set_long_mode(weather_label_, LV_LABEL_LONG_CLIP);
     lv_label_set_text(weather_label_, "");
-    detail_label_ = Label(clock_page_, 8, 216, 226, kDaySub);
-    // Next three days: a small picture over "T5 20-25". The Menu button sits below them.
+    detail_label_ = Label(clock_page_, 8, 176, 226, kDaySub);
+    // Next three days: a small picture beside "T5" over "20-25".
     for (int i = 0; i < 3; ++i) {
         forecast_icons_[i] = lv_obj_create(clock_page_);
         lv_obj_remove_style_all(forecast_icons_[i]);
         lv_obj_remove_flag(forecast_icons_[i], LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_pos(forecast_icons_[i], 6 + i * 78 + 27, 244);
-        lv_obj_set_size(forecast_icons_[i], 22, 22);
-        forecast_labels_[i] = Label(clock_page_, 6 + i * 78, 268, 76, kDaySub);
+        lv_obj_set_pos(forecast_icons_[i], 6 + i * 78, 204);
+        lv_obj_set_size(forecast_icons_[i], 24, 24);
+        forecast_labels_[i] = Label(clock_page_, 34 + i * 78, 200, 46, kDaySub);
         lv_obj_set_style_text_font(forecast_labels_[i], LV_FONT_DEFAULT, 0);
-        lv_obj_set_style_text_align(forecast_labels_[i], LV_TEXT_ALIGN_CENTER, 0);
     }
     text_labels_.push_back(weather_label_);
+
+    // Dock: four app icons without labels, evenly spread.
+    dock_ = lv_obj_create(clock_page_);
+    lv_obj_remove_style_all(dock_);
+    lv_obj_remove_flag(dock_, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(dock_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_pos(dock_, 0, kDockY - 8);
+    lv_obj_set_size(dock_, LV_PCT(100), 320 - kDockY + 8);
+    lv_obj_set_style_bg_color(dock_, lv_color_hex(0x161E33), 0);
+    lv_obj_set_style_bg_opa(dock_, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(dock_, 16, 0);
+    const int count = std::min<int>(hooks_.dock.size(), 4);
+    if (count > 0) {
+        const int screen_w = lv_obj_get_width(lv_layer_top());
+        const int cell_w = screen_w / count;
+        for (int i = 0; i < count; ++i) {
+            CreateAppTile(dock_, i * cell_w, 10, kDockTile, cell_w, hooks_.dock[i], std::string(), dock_handlers_);
+        }
+    }
 }
 
 void HomeScreen::BuildCalendarPage() {
@@ -393,8 +398,8 @@ void HomeScreen::Show() {
     UpdateWeather();
     ApplyColors();
     lv_obj_remove_flag(root_, LV_OBJ_FLAG_HIDDEN);
-    if (hooks_.menu_button) {
-        hooks_.menu_button(true);
+    if (hooks_.floating_buttons) {
+        hooks_.floating_buttons(true);
     }
 }
 
@@ -409,8 +414,8 @@ void HomeScreen::Hide() {
         calendar_day_ = -1;
     }
     UpdateNight(false);
-    if (hooks_.menu_button) {
-        hooks_.menu_button(false);
+    if (hooks_.floating_buttons) {
+        hooks_.floating_buttons(false);
     }
 }
 
@@ -424,6 +429,25 @@ bool HomeScreen::HandleTap() {
         return true;
     }
     return false;
+}
+
+void HomeScreen::ShowNow(int page) {
+    if (!lvgl_port_lock(3000)) {
+        return;
+    }
+    last_activity_us_ = 0;  // counts as idle for long enough
+    if (built_ && Application::GetInstance().GetDeviceState() == kDeviceStateIdle) {
+        if (!shown_) {
+            Show();
+        }
+        ChangePage(page - page_);
+    }
+    lvgl_port_unlock();
+}
+
+bool HomeScreen::DockContains(int x, int y) const {
+    (void)x;
+    return shown_ && page_ == 0 && !night_ && y >= kDockY - 8;
 }
 
 void HomeScreen::Dismiss() {
@@ -451,10 +475,6 @@ void HomeScreen::ChangePage(int delta) {
             lv_obj_add_flag(calendar_page_, LV_OBJ_FLAG_HIDDEN);
         }
         lv_obj_remove_flag(clock_page_, LV_OBJ_FLAG_HIDDEN);
-    }
-    // The Menu button would cover the calendar's last cell; swipe up opens the menu there.
-    if (hooks_.menu_button) {
-        hooks_.menu_button(page_ == 0);
     }
     ApplyColors();
 }
@@ -488,11 +508,15 @@ void HomeScreen::ApplyColors() {
     }
     on_color_ = night_ ? kNightOn : kDayOn;
     off_color_ = night_ ? kNightOff : kDayOff;
+    for (lv_obj_t* digit : clock_digits_) {
+        lv_obj_set_style_text_color(digit, on_color_, 0);
+    }
+    lv_obj_set_style_text_color(temp_label_, on_color_, 0);
     const lv_color_t text = night_ ? kNightText : kDayText;
     const lv_color_t sub = night_ ? kNightText : kDaySub;
     lv_obj_set_style_bg_color(root_, night_ ? kNightBg : kDayBg, 0);
     // At night only the date and clock show, so move them to the middle of the screen.
-    lv_obj_set_y(clock_page_, night_ ? 90 : 0);
+    lv_obj_set_y(clock_page_, night_ ? 100 : 0);
     for (lv_obj_t* label : text_labels_) {
         lv_obj_set_style_text_color(label, text, 0);
     }
@@ -502,28 +526,14 @@ void HomeScreen::ApplyColors() {
     for (lv_obj_t* label : forecast_labels_) {
         lv_obj_set_style_text_color(label, sub, 0);
     }
-    for (lv_obj_t* dot : colon_) {
-        lv_obj_set_style_bg_color(dot, on_color_, 0);
-    }
-    lv_obj_set_style_bg_color(degree_, night_ ? kNightBg : kDayBg, 0);
-    lv_obj_set_style_border_color(degree_, on_color_, 0);
     // At night only the clock stays; the weather would be too bright.
-    for (lv_obj_t* obj : {weather_icon_, degree_, weather_label_, detail_label_, forecast_labels_[0],
+    for (lv_obj_t* obj : {weather_icon_, temp_label_, weather_label_, detail_label_, forecast_labels_[0],
                           forecast_labels_[1], forecast_labels_[2], forecast_icons_[0], forecast_icons_[1],
-                          forecast_icons_[2]}) {
+                          forecast_icons_[2], dock_}) {
         if (night_) {
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_remove_flag(obj, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
-    for (auto& digit : temp_digits_) {
-        for (lv_obj_t* segment : digit.segments) {
-            if (night_) {
-                lv_obj_add_flag(segment, LV_OBJ_FLAG_HIDDEN);
-            } else {
-                lv_obj_remove_flag(segment, LV_OBJ_FLAG_HIDDEN);
-            }
         }
     }
     UpdateClock(true);
@@ -538,9 +548,7 @@ void HomeScreen::UpdateClock(bool force) {
     struct tm tm_now = {};
     const bool valid = LocalTime(tm_now);
     const bool colon_on = !valid || tm_now.tm_sec % 2 == 0;
-    for (lv_obj_t* dot : colon_) {
-        lv_obj_set_style_bg_color(dot, colon_on ? on_color_ : off_color_, 0);
-    }
+    lv_obj_set_style_text_color(colon_, colon_on ? on_color_ : off_color_, 0);
     char buffer[96];
     if (valid) {
         snprintf(buffer, sizeof(buffer), "%02d", tm_now.tm_sec);
@@ -566,8 +574,8 @@ void HomeScreen::UpdateClock(bool force) {
     }
     shown_minute_ = minute;
     if (!valid) {
-        for (auto& digit : clock_digits_) {
-            SetDigit(digit, -1);
+        for (lv_obj_t* digit : clock_digits_) {
+            lv_label_set_text(digit, "-");
         }
         lv_label_set_text(date_label_, "Đang lấy giờ...");
         if (!pomodoro.running) {
@@ -575,10 +583,11 @@ void HomeScreen::UpdateClock(bool force) {
         }
         return;
     }
-    SetDigit(clock_digits_[0], tm_now.tm_hour / 10);
-    SetDigit(clock_digits_[1], tm_now.tm_hour % 10);
-    SetDigit(clock_digits_[2], tm_now.tm_min / 10);
-    SetDigit(clock_digits_[3], tm_now.tm_min % 10);
+    const int digits[4] = {tm_now.tm_hour / 10, tm_now.tm_hour % 10, tm_now.tm_min / 10, tm_now.tm_min % 10};
+    for (int i = 0; i < 4; ++i) {
+        const char text[2] = {static_cast<char>('0' + digits[i]), '\0'};
+        lv_label_set_text(clock_digits_[i], text);
+    }
     snprintf(buffer, sizeof(buffer), "%s, %02d/%02d", kWeekdayLong[tm_now.tm_wday], tm_now.tm_mday,
              tm_now.tm_mon + 1);
     lv_label_set_text(date_label_, buffer);
@@ -601,8 +610,7 @@ void HomeScreen::UpdateWeather() {
     weather_stamp_ = stamp;
     if (!weather.valid) {
         lv_obj_clean(weather_icon_);
-        SetDigit(temp_digits_[0], -1);
-        SetDigit(temp_digits_[1], -1);
+        lv_label_set_text(temp_label_, "--");
         lv_label_set_text(weather_label_, "Đang tải thời tiết...");
         lv_label_set_text(detail_label_, "");
         for (size_t i = 0; i < forecast_labels_.size(); ++i) {
@@ -613,14 +621,9 @@ void HomeScreen::UpdateWeather() {
     }
     DrawWeatherIcon(weather_icon_, weather.code, 40);
     const int temperature = std::clamp(static_cast<int>(weather.temperature + (weather.temperature >= 0 ? 0.5f : -0.5f)), -9, 99);
-    if (temperature < 0) {
-        SetDigit(temp_digits_[0], -1);
-        SetDigit(temp_digits_[1], -temperature);
-    } else {
-        SetDigit(temp_digits_[0], temperature >= 10 ? temperature / 10 : -2);
-        SetDigit(temp_digits_[1], temperature % 10);
-    }
     char buffer[96];
+    snprintf(buffer, sizeof(buffer), "%d°", temperature);
+    lv_label_set_text(temp_label_, buffer);
     if (!weather.days.empty()) {
         snprintf(buffer, sizeof(buffer), "%s\n%d-%d", Weather::Describe(weather.code), weather.days[0].t_min,
                  weather.days[0].t_max);
@@ -634,9 +637,9 @@ void HomeScreen::UpdateWeather() {
     for (size_t i = 0; i < forecast_labels_.size(); ++i) {
         if (i + 1 < weather.days.size()) {
             const auto& day = weather.days[i + 1];
-            snprintf(buffer, sizeof(buffer), "%s %d-%d", kWeekdayShort[day.weekday % 7], day.t_min, day.t_max);
+            snprintf(buffer, sizeof(buffer), "%s\n%d-%d", kWeekdayShort[day.weekday % 7], day.t_min, day.t_max);
             lv_label_set_text(forecast_labels_[i], buffer);
-            DrawWeatherIcon(forecast_icons_[i], day.code, 22);
+            DrawWeatherIcon(forecast_icons_[i], day.code, 24);
         } else {
             lv_label_set_text(forecast_labels_[i], "");
             lv_obj_clean(forecast_icons_[i]);

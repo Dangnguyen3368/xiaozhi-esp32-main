@@ -16,6 +16,8 @@
 #include "study_ui.h"
 #include "wifi_setup_view.h"
 #include "home_screen.h"
+#include "app_launcher.h"
+#include "app_icons.h"
 #include "control_center.h"
 #include "weather.h"
 #include "study/study_timer.h"
@@ -102,12 +104,14 @@ private:
     MenuButton menu_button_;
     std::unique_ptr<WifiSetupView> wifi_setup_;
     HomeScreen home_;
+    AppLauncher launcher_;
+    std::vector<AppEntry> dock_;
     std::unique_ptr<ControlCenter> control_center_;
 
     bool AnyOverlayShown() const {
         return figure_view_.IsShown() || progress_view_.IsShown() || (study_menu_ && study_menu_->IsShown()) ||
                (wifi_setup_ && wifi_setup_->IsShown()) || nav_setup_.IsShown() ||
-               drive_view_.IsShown() || (control_center_ && control_center_->IsShown());
+               drive_view_.IsShown() || (control_center_ && control_center_->IsShown()) || launcher_.IsShown();
     }
 
     // The server ignores text sent as a wake phrase in the middle of a chat, so the problem is
@@ -171,9 +175,69 @@ private:
         actions.pomodoro_running = []() { return StudyTimer::GetInstance().GetState().running; };
         actions.radio_running = [this]() { return internet_radio_ && internet_radio_->IsRunning(); };
         actions.local_music_running = [this]() { return internet_radio_ && internet_radio_->IsLocal(); };
+        actions.main_menu = [this]() { launcher_.Show(0); };
+        CreateLauncher(actions);
         study_menu_ = std::make_unique<StudyMenu>(std::move(actions));
         wifi_setup_ = std::make_unique<WifiSetupView>([this]() { EnterWifiConfigMode(); });
         control_center_ = std::make_unique<ControlCenter>(home_, [this]() { wifi_setup_->Start(); });
+    }
+
+    // The app grid (two pages) and the home screen dock. Actions run on the main task.
+    void CreateLauncher(const StudyMenu::Actions& study) {
+        auto text = [](const char* label) { return std::function<std::string()>([label]() { return std::string(label); }); };
+        const AppEntry chat = {app_icon::kChat, 0x1E88E5, text("Trò chuyện"), [this]() {
+                                   auto& app = Application::GetInstance();
+                                   if (app.GetDeviceState() == kDeviceStateIdle) {
+                                       app.ToggleChatState();
+                                   }
+                               }};
+        const AppEntry practice = {app_icon::kSchool, 0x5E35B1, text("Luyện thi"), study.practice};
+        const AppEntry drive = {app_icon::kCar, 0x00897B, text("Lái xe"),
+                                [this]() { drive_view_.Show(DriveView::Page::kSpeed); }};
+        // Three pages: study, everyday apps, system.
+        std::vector<AppLauncher::Page> pages(3);
+        pages[0].title = "Học tập";
+        pages[0].apps = {
+            practice,
+            {app_icon::kReplay, 0xFB8C00, text("Ôn bài sai"), study.review},
+            {app_icon::kFunctions, 0x00897B, text("Công thức"), [this]() { study_menu_->ShowFormulaTopics(); }},
+            {app_icon::kMonitoring, 0x43A047, text("Tiến độ"), study.progress},
+            {app_icon::kTimer, 0x8E24AA,
+             []() { return std::string(StudyTimer::GetInstance().GetState().running ? "Dừng giờ" : "Hẹn giờ"); },
+             study.toggle_pomodoro},
+            {app_icon::kCamera, 0xE53935, text("Giải ảnh"), [this]() { study_menu_->ShowPhoto(); }},
+        };
+        pages[1].title = "Tiện ích";
+        pages[1].apps = {
+            chat,
+            {app_icon::kRadio, 0xD81B60,
+             [this]() { return std::string(internet_radio_ && internet_radio_->IsRunning() ? "Tắt nhạc" : "Radio"); },
+             study.toggle_radio},
+            {app_icon::kLibraryMusic, 0xF4511E,
+             [this]() { return std::string(internet_radio_ && internet_radio_->IsLocal() ? "Bài tiếp" : "Nhạc PC"); },
+             study.local_music},
+            {app_icon::kComputer, 0x3949AB, text("Máy tính"), [this]() { study_menu_->ShowComputer(); }},
+            {app_icon::kBank, 0x2E7D32, text("Ngân hàng"), [this]() { study_menu_->ShowBank(); }},
+            drive,
+            {app_icon::kCalendar, 0x1E88E5, text("Lịch"), [this]() { home_.ShowNow(1); }},
+            {app_icon::kWeather, 0xFFA000, text("Thời tiết"), [this]() { home_.ShowNow(0); }},
+        };
+        pages[2].title = "Hệ thống";
+        pages[2].apps = {
+            {app_icon::kWifi, 0x00897B, text("Wi-Fi"), study.wifi_setup},
+            {app_icon::kTune, 0x546E7A, text("Cài đặt"), [this]() { control_center_->Show(); }},
+            {app_icon::kInfo, 0x3949AB, text("Thông tin"), [this]() { control_center_->ShowInfo(); }},
+            {app_icon::kUpdate, 0x43A047, text("Cập nhật"), study.update_firmware},
+        };
+        launcher_.SetPages(std::move(pages));
+        dock_ = {chat, practice, drive,
+                 {app_icon::kApps, 0x546E7A, text("Ứng dụng"), [this]() { OpenApps(); }}};
+    }
+
+    void OpenApps() {
+        if (!AnyOverlayShown()) {
+            launcher_.Show(0);
+        }
     }
 
     // Same action as the BOOT button: stop the radio if it plays, otherwise toggle chat.
@@ -328,6 +392,10 @@ private:
                 DriveButton::Contains(x, y, DISPLAY_WIDTH, DISPLAY_HEIGHT)) {
                 return;
             }
+            // The dock icons handle their own taps.
+            if (home_.DockContains(x, y)) {
+                return;
+            }
             // At night the first tap only lights the dimmed clock up.
             if (home_.HandleTap()) {
                 return;
@@ -338,6 +406,12 @@ private:
         // Swipe down: control center (on the chat screen only from the top edge, so the chat
         // can still be scrolled). Swipe up: menu. Left/right: home screen pages.
         touch_->OnSwipe([this](Xpt2046Touch::Swipe swipe, int x, int y) {
+            if (launcher_.IsShown()) {
+                if (swipe == Xpt2046Touch::Swipe::kLeft || swipe == Xpt2046Touch::Swipe::kRight) {
+                    launcher_.ChangePage(swipe == Xpt2046Touch::Swipe::kLeft ? 1 : -1);
+                }
+                return;
+            }
             if (AnyOverlayShown() || !study_menu_) {
                 return;
             }
@@ -349,7 +423,7 @@ private:
                     break;
                 case Xpt2046Touch::Swipe::kUp:
                     if (home_.IsShown() || y > DISPLAY_HEIGHT - 80) {
-                        Application::GetInstance().Schedule([this]() { study_menu_->Show(); });
+                        Application::GetInstance().Schedule([this]() { OpenApps(); });
                     }
                     break;
                 case Xpt2046Touch::Swipe::kLeft:
@@ -364,7 +438,7 @@ private:
             if (AnyOverlayShown() || !study_menu_) {
                 return;
             }
-            Application::GetInstance().Schedule([this]() { study_menu_->Show(); });
+            Application::GetInstance().Schedule([this]() { OpenApps(); });
         });
         DisplayLockGuard lock(display_);
         touch_->AttachToLvgl();
@@ -578,11 +652,7 @@ private:
         // Board::GetInstance(), which must not be called while the board is still being built.
         Application::GetInstance().Schedule([this]() {
             DisplayLockGuard lock(display_);
-            menu_button_.Create([this]() {
-                if (!AnyOverlayShown()) {
-                    study_menu_->Show();
-                }
-            });
+            menu_button_.Create([this]() { OpenApps(); });
             drive_button_.Create([this]() {
                 if (!AnyOverlayShown()) {
                     drive_view_.Show(DriveView::Page::kSpeed);
@@ -590,10 +660,11 @@ private:
             });
             HomeScreen::Hooks hooks;
             hooks.overlay_shown = [this]() { return AnyOverlayShown(); };
-            hooks.menu_button = [this](bool on_top) {
-                menu_button_.SetOnTop(on_top);
-                drive_button_.SetOnTop(on_top);
+            hooks.floating_buttons = [this](bool home_shown) {
+                menu_button_.SetHidden(home_shown);
+                drive_button_.SetHidden(home_shown);
             };
+            hooks.dock = dock_;
             home_.Start(std::move(hooks));
             Weather::GetInstance().Start();
         });
