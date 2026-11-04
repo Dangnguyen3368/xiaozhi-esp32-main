@@ -6,12 +6,15 @@
 #include "lvgl_font.h"
 
 #include <esp_log.h>
+#include <esp_memory_utils.h>
 #include <esp_lvgl_port.h>
 
 #include <algorithm>
 #include <cstdio>
 
 #define TAG "StudyUi"
+
+LV_FONT_DECLARE(font_vi_fallback_16);
 
 namespace {
 constexpr int kLockTimeoutMs = 3000;
@@ -51,7 +54,15 @@ namespace study_ui {
 const lv_font_t* TextFont() {
     if (auto* display = Board::GetInstance().GetDisplay(); display && display->GetTheme()) {
         if (auto text_font = display->GetTheme()->GetTextFont()) {
-            return text_font->font();
+            const lv_font_t* font = text_font->font();
+            // The downloaded text font holds only the most frequent characters, so rarer
+            // Vietnamese letters (Ẩ, Ấ, ẹ, ỷ, ỵ, Ứ...) were blank. Borrow them from a small built-in
+            // font. Only a font loaded into RAM can take a fallback; built-in fonts live in flash.
+            if (font != nullptr && font->fallback == nullptr &&
+                (esp_ptr_internal(font) || esp_ptr_external_ram(font))) {
+                const_cast<lv_font_t*>(font)->fallback = &font_vi_fallback_16;
+            }
+            return font;
         }
     }
     return nullptr;

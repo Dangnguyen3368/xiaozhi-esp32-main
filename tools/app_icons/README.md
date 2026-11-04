@@ -21,3 +21,14 @@ SemiBold (SIL Open Font License), generated with the same script:
 python tools/app_icons/mkfont.py InterDisplay-SemiBold.otf 86 font_clock_86 main/boards/bread-compact-wifi-lcd/font_clock_86.c 30,31,32,33,34,35,36,37,38,39,3a,2d
 python tools/app_icons/mkfont.py InterDisplay-SemiBold.otf 40 font_clock_40 main/boards/bread-compact-wifi-lcd/font_clock_40.c 30,31,32,33,34,35,36,37,38,39,2d,b0
 ```
+
+## Vietnamese fallback font
+
+The assets text font (font_noto_sans_common_16_4) lacks rarer Vietnamese letters such as Ẩ, Ấ,
+ẹ, ỷ, ỵ, Ứ. `font_vi_fallback_16.c` (Noto Sans Regular, SIL OFL, from the `@fontsource/noto-sans`
+vietnamese subset converted to TTF) holds U+1EA0..U+1EF9 plus Ă ă Đ đ Ĩ ĩ Ũ ũ Ơ ơ Ư ư and is set as
+the text font's fallback in `study_ui::TextFont()`:
+
+```
+python tools/app_icons/mkfont.py noto-sans-vietnamese.ttf 16 font_vi_fallback_16 main/boards/bread-compact-wifi-lcd/font_vi_fallback_16.c <hex codepoints>
+```
