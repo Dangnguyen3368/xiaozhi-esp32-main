@@ -89,6 +89,11 @@ endif()
 # PhysicsTutor::GetInstance().RegisterTools() from its InitializeTools().
 list(APPEND SOURCES "study/physics_tutor.cc" "study/physics_bank_data.cc" "study/study_timer.cc" "study/firmware_update.cc")
 
+# Car mode (GPS module, camera/speed/traffic alerts): only the TFT board has free pins for it.
+if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
+    list(APPEND SOURCES "nav/gps_reader.cc" "nav/nav_assistant.cc" "nav/nav_cameras_osm.cc" "nav/nav_voice_data.cc")
+endif()
+
 
 idf_build_get_property(build_components BUILD_COMPONENTS)
 # Function to find component dynamically by pattern
