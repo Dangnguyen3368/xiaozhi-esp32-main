@@ -87,6 +87,10 @@ Trong Menu có trang **Máy tính** để bấm nhanh: Đọc để gõ, Mở Wo
 
 Robot chỉ gõ, bấm phím và mở Word, Excel, PowerPoint, Notepad, máy tính bỏ túi, trình duyệt; không chạy được lệnh nào khác.
 
+## Loa báo chuyển khoản
+
+Robot đọc to tiền vào tài khoản ("Đã nhận năm trăm nghìn đồng") và hiện nội dung thông báo ngân hàng lên màn hình. Bấm Menu > Máy tính > **Báo chuyển khoản** (hoặc nói "cài loa báo chuyển khoản"), điện thoại cùng Wi-Fi quét mã QR: trang hiện ra có địa chỉ `http://<robot>:8080/bank?key=...`, nút Thử và hướng dẫn cài MacroDroid (Android) để chuyển mỗi thông báo của app ngân hàng sang robot bằng HTTP POST. Chỉ đọc khoản tiền vào (`+500,000 VND`, "nhận được 50.000đ"); khoản tiền ra chỉ hiện chữ. Đang nói chuyện thì robot chờ nói xong mới đọc; đang nghe radio thì chỉ hiện chữ. Giọng đọc số tạo bằng `tools/money_voice/gen.py` (workflow "Generate money voice clips"). Hỏi "vừa nhận bao nhiêu tiền" để nghe lại 10 thông báo gần nhất.
+
 ## Sửa ngân hàng câu hỏi
 
 Đề bài, đáp án, gợi ý, lời giải và bảng tóm tắt đại lượng nằm trong `tools/physics-bank/*.py`. Hình vẽ nằm trong `tools/physics-bank/fig/b_<mã>.png`. Sau khi sửa, chạy:

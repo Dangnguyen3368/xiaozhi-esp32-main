@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <mutex>
+#include <vector>
 
 namespace photo_solver {
 namespace {
@@ -119,6 +120,7 @@ struct Photo {
 
 std::mutex mutex_;
 httpd_handle_t server_ = nullptr;
+std::vector<httpd_uri_t> extra_routes_;  // other features' pages, registered at start
 Photo photo_;
 std::function<void(const std::string&)> viewer_;
 std::function<void()> qr_viewer_;
@@ -183,6 +185,8 @@ esp_err_t HandleUpload(httpd_req_t* req) {
     return httpd_resp_send(req, "ok", HTTPD_RESP_USE_STRLEN);
 }
 
+}  // namespace
+
 bool StartServer() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (server_ != nullptr) {
@@ -192,6 +196,8 @@ bool StartServer() {
     config.server_port = kPort;
     config.ctrl_port = 32770;  // the Wi-Fi setup page uses the default one
     config.max_open_sockets = 3;
+    config.max_uri_handlers = 12;
+    config.lru_purge_enable = true;
     config.recv_wait_timeout = 15;
     if (httpd_start(&server_, &config) != ESP_OK) {
         ESP_LOGE(kTag, "Cannot start the photo page on port %d", kPort);
@@ -211,9 +217,26 @@ bool StartServer() {
     upload.method = HTTP_POST;
     upload.handler = HandleUpload;
     httpd_register_uri_handler(server_, &upload);
-    ESP_LOGI(kTag, "Photo page started on port %d", kPort);
+    for (const auto& route : extra_routes_) {
+        httpd_register_uri_handler(server_, &route);
+    }
+    ESP_LOGI(kTag, "Robot web page started on port %d", kPort);
     return true;
 }
+
+void AddRoute(const char* uri, httpd_method_t method, esp_err_t (*handler)(httpd_req_t* req)) {
+    httpd_uri_t route = {};
+    route.uri = uri;
+    route.method = method;
+    route.handler = handler;
+    std::lock_guard<std::mutex> lock(mutex_);
+    extra_routes_.push_back(route);
+    if (server_ != nullptr) {
+        httpd_register_uri_handler(server_, &route);
+    }
+}
+
+namespace {
 
 // True when the text has CJK ideographs (UTF-8 lead bytes 0xE4..0xE9 cover U+4000..U+9FFF).
 bool HasChinese(const std::string& text) {

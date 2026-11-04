@@ -129,6 +129,8 @@ void StudyMenu::ShowComputer() { Build(Page::kComputer); }
 
 void StudyMenu::ShowPhoto() { Build(Page::kPhoto); }
 
+void StudyMenu::ShowBank() { Build(Page::kBank); }
+
 void StudyMenu::BuildComputer(lv_obj_t* grid,
                               const std::function<void(const char*, lv_color_t, std::function<void()>)>& add) {
     (void)grid;
@@ -155,6 +157,7 @@ void StudyMenu::BuildComputer(lv_obj_t* grid,
     add("Hoàn tác", kOrange, command("key", "ctrl+z"));
     add("Lưu (Ctrl+S)", kGreen, command("key", "ctrl+s"));
     add("Đóng cửa sổ", kRed, command("key", "alt+f4"));
+    add("Báo chuyển khoản", kOrange, [this]() { Build(Page::kBank); });
     add("Ghép máy", kTeal, [this]() {
         pair_code_.clear();
         Build(Page::kPair);
@@ -253,6 +256,8 @@ void StudyMenu::Build(Page page) {
     // Starts the robot's photo page, so do it before taking the LVGL lock too.
     const std::string photo_url =
         page == Page::kPhoto && actions_.phone_photo_url ? actions_.phone_photo_url() : std::string();
+    const std::string bank_url =
+        page == Page::kBank && actions_.bank_setup_url ? actions_.bank_setup_url() : std::string();
 
     if (!lvgl_port_lock(kLockTimeoutMs)) {
         ESP_LOGE(TAG, "Failed to lock LVGL");
@@ -275,6 +280,8 @@ void StudyMenu::Build(Page page) {
         title = "Nhập mã 4 số trên máy tính";
     } else if (page == Page::kPhoto) {
         title = "Điện thoại quét mã, chụp đề rồi gửi";
+    } else if (page == Page::kBank) {
+        title = "Báo chuyển khoản: quét mã để cài";
     }
     study_ui::AddLabel(panel_, title, kInk);
     if (page == Page::kPhoto) {
@@ -288,6 +295,18 @@ void StudyMenu::Build(Page page) {
             }
             study_ui::AddLabel(panel_, photo_url, kBlue);
             study_ui::AddLabel(panel_, "Gửi xong robot tự giải và hiện lời giải.", kInk);
+        }
+    }
+    if (page == Page::kBank) {
+        if (bank_url.empty()) {
+            study_ui::AddLabel(panel_, "Robot chưa có Wi-Fi.", kRed);
+        } else {
+            if (BuildQrImage(bank_url, 140)) {
+                lv_obj_set_flex_align(panel_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+                lv_obj_t* qr = lv_image_create(panel_);
+                lv_image_set_src(qr, &qr_dsc_);
+            }
+            study_ui::AddLabel(panel_, "Điện thoại cùng Wi-Fi, làm theo trang hiện ra.", kInk);
         }
     }
     if (page == Page::kPair) {
@@ -316,6 +335,17 @@ void StudyMenu::Build(Page page) {
 
     if (page == Page::kComputer) {
         BuildComputer(grid, add);
+        shown_ = true;
+        lvgl_port_unlock();
+        return;
+    }
+    if (page == Page::kBank) {
+        add("Thử 500.000đ", kGreen, [this]() {
+            if (actions_.bank_test) {
+                actions_.bank_test();
+            }
+        });
+        add("Quay lại", kGrey, [this]() { ShowComputer(); });
         shown_ = true;
         lvgl_port_unlock();
         return;

@@ -8,6 +8,7 @@
 #include "audio/internet_radio.h"
 #include "pc/pc_control.h"
 #include "pc/photo_solver.h"
+#include "pc/bank_notify.h"
 #include "study/physics_tutor.h"
 #include "study/study_timer.h"
 #include "button.h"
@@ -237,6 +238,7 @@ private:
             });
         PcControl::GetInstance().RegisterTool();
         photo_solver::RegisterTool();
+        bank_notify::Start();
 
         McpServer::GetInstance().AddTool(
             "self.screen.switch_face",
