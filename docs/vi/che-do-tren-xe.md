@@ -26,6 +26,15 @@ Trên xe, robot vào mạng bằng điểm phát Wi-Fi của điện thoại: th
 - **Báo đường buổi sáng:** đến giờ đặt sẵn, robot tính đường từ "Từ" đến "Đến"; chậm hơn bình thường từ số phút bạn đặt thì nói "nên đi sớm", không thì "thông thoáng".
 - Robot **không** dẫn đường từng ngã rẽ, không biết biển báo khác ngoài tốc độ, không tra phạt nguội.
 
+## Màn hình lái xe
+
+Bấm nút **Xe** ở góc trái dưới màn hình, hoặc nói "mở màn hình lái xe" / "mở bản đồ". Khi xe chạy trên 15 km/h được 5 giây, màn hình này tự mở (mỗi chuyến một lần). Chạm vào màn hình để đổi giữa hai trang, nút **X** để đóng.
+
+- **Trang tốc độ:** số tốc độ thật to (chuyển đỏ khi quá tốc độ), biển giới hạn tốc độ, khoảng cách tới camera kèm thanh đếm lùi, và dòng báo tắc đường gần nhất.
+- **Trang bản đồ:** bản đồ TomTom quanh xe (cập nhật 2 giây một lần), mũi tên xanh là xe, chấm cam là camera, nút **+ / −** để phóng to hoặc thu nhỏ. Chưa có GPS thì bản đồ hiện quanh địa điểm "Nhà", chấm đỏ là chỗ đó. Bản đồ tốn khoảng 5–10 MB 4G mỗi giờ.
+
+Cắm module GPS vào thì robot nói "Đã kết nối GPS, đang tìm vệ tinh"; bắt được vệ tinh thì nói "Đã bắt được tín hiệu GPS". Rút dây ra thì màn hình báo "Mất kết nối GPS".
+
 ## Cài đặt
 
 Nói "cài đặt dẫn đường" (hoặc gọi `self.nav.setup`): màn hình hiện mã QR, điện thoại cùng mạng quét để mở `http://<IP robot>:8081/xe`.

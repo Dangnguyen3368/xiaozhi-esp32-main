@@ -4,6 +4,8 @@
 
 #include <functional>
 #include <string>
+#include <utility>
+#include <vector>
 
 // Car mode: the robot rides in the car on the phone's Wi-Fi hotspot with a GPS module
 // (GY-NEO6MV2) and
@@ -23,7 +25,20 @@ struct Status {
     int limit_kmh = 0;         // 0 = none
     int camera_m = -1;         // distance to the camera ahead, -1 = none near
     bool overspeed = false;
+    double lat = 0;            // valid when has_fix
+    double lon = 0;
+    float course_deg = 0;
+    std::string note;          // last traffic alert, kept 10 minutes
 };
+
+// Where the map should look: the GPS position, else the place "Nhà", else the first saved place,
+// else Thanh Hóa city. `label` says which.
+void MapCenter(double& lat, double& lon, std::string& label);
+// Cameras (built-in and the user's) within `meters` of a point.
+std::vector<std::pair<double, double>> CamerasNear(double lat, double lon, double meters);
+// Downloads one TomTom raster map tile (PNG). False without a key or on a network error.
+bool FetchMapTile(int zoom, int x, int y, std::string& png);
+bool HasKey();
 
 // Starts the GPS reader (`rx` = robot pin wired to the module's TX), the monitor task and the
 // settings page.
@@ -33,6 +48,8 @@ void RegisterTools();
 
 // Called about once a second from the monitor task.
 void SetStatusListener(std::function<void(const Status&)> listener);
+// Opens the driving screen: 0 closes it, 1 shows the speed page, 2 the map page.
+void SetDriveViewer(std::function<void(int page)> viewer);
 // Shows the settings QR code (called when the voice tool or the web page needs it).
 void SetSetupViewer(std::function<void()> viewer);
 // False while the robot must not play alerts (the Internet radio writes to the speaker).

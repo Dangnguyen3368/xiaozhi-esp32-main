@@ -93,12 +93,15 @@ private:
     PomodoroBadge pomodoro_badge_;
     NavBadge nav_badge_;
     NavSetupView nav_setup_;
+    DriveView drive_view_;
+    DriveButton drive_button_;
     MenuButton menu_button_;
     std::unique_ptr<WifiSetupView> wifi_setup_;
 
     bool AnyOverlayShown() const {
         return figure_view_.IsShown() || progress_view_.IsShown() || (study_menu_ && study_menu_->IsShown()) ||
-               (wifi_setup_ && wifi_setup_->IsShown()) || nav_setup_.IsShown();
+               (wifi_setup_ && wifi_setup_->IsShown()) || nav_setup_.IsShown() ||
+               drive_view_.IsShown();
     }
 
     // The server ignores text sent as a wake phrase in the middle of a chat, so the problem is
@@ -312,7 +315,8 @@ private:
         // the BOOT button and a long press opens the study menu.
         touch_->OnTap([this](int x, int y) {
             // The Menu button handles its own taps.
-            if (AnyOverlayShown() || MenuButton::Contains(x, y, DISPLAY_WIDTH, DISPLAY_HEIGHT)) {
+            if (AnyOverlayShown() || MenuButton::Contains(x, y, DISPLAY_WIDTH, DISPLAY_HEIGHT) ||
+                DriveButton::Contains(x, y, DISPLAY_WIDTH, DISPLAY_HEIGHT)) {
                 return;
             }
             Application::GetInstance().Schedule([this]() { ToggleChatOrStopRadio(); });
@@ -486,7 +490,24 @@ private:
             }
         });
         // Car mode: GPS module, camera/speed/traffic alerts, settings page on port 8081.
-        nav::SetStatusListener([this](const nav::Status& status) { nav_badge_.Update(status); });
+        nav::SetStatusListener([this](const nav::Status& status) {
+            nav_badge_.Update(status);
+            drive_view_.Update(status);
+        });
+        nav::SetDriveViewer([this](int page) {
+            Application::GetInstance().Schedule([this, page]() {
+                if (page == 0) {
+                    drive_view_.Hide();
+                    return;
+                }
+                figure_view_.Hide();
+                nav_setup_.Hide();
+                if (study_menu_) {
+                    study_menu_->Hide();
+                }
+                drive_view_.Show(page == 2 ? DriveView::Page::kMap : DriveView::Page::kSpeed);
+            });
+        });
         nav::SetSetupViewer([this]() {
             figure_view_.Hide();
             if (study_menu_) {
@@ -507,6 +528,11 @@ private:
             menu_button_.Create([this]() {
                 if (!AnyOverlayShown()) {
                     study_menu_->Show();
+                }
+            });
+            drive_button_.Create([this]() {
+                if (!AnyOverlayShown()) {
+                    drive_view_.Show(DriveView::Page::kSpeed);
                 }
             });
         });

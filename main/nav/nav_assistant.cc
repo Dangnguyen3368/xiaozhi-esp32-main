@@ -92,6 +92,9 @@ std::mutex mutex_;
 Config config_;
 std::function<void(const Status&)> status_listener_;
 std::function<void()> setup_viewer_;
+std::function<void(int)> drive_viewer_;
+std::string note_;            // last traffic alert for the driving screen
+int64_t note_us_ = 0;
 std::function<bool()> can_speak_;
 httpd_handle_t server_ = nullptr;
 TaskHandle_t task_ = nullptr;
@@ -526,6 +529,11 @@ struct Monitor {
     int64_t last_jam_check_us = 0;
     int64_t last_jam_alert_us = -kJamRepeatUs;
     bool gps_announced = false;
+    bool module_was_seen = false;
+    int64_t module_lost_us = 0;
+    int moving_seconds = 0;
+    int stopped_seconds = 0;
+    bool drive_opened = false;    // opened by itself on this trip
     int am_done_day = -1;
 };
 
@@ -586,9 +594,57 @@ void Tick(Monitor& monitor) {
     status.speed_kmh = module_fix ? static_cast<int>(fix.speed_kmh + 0.5f) : 0;
     status.limit_kmh = config.limit_kmh;
 
+    status.lat = fix.lat;
+    status.lon = fix.lon;
+    status.course_deg = fix.course_deg;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!note_.empty() && now - note_us_ < 10 * 60 * kSecondUs) {
+            status.note = note_;
+        }
+    }
+
+    // Tell the user when the module is plugged in or unplugged, and when it finds satellites.
+    if (status.module_seen && !monitor.module_was_seen) {
+        monitor.module_was_seen = true;
+        monitor.module_lost_us = 0;
+        ESP_LOGI(kTag, "GPS module connected");
+        Notify("Đã kết nối GPS, đang tìm vệ tinh", 8000);
+        if (!monitor.gps_announced) {
+            Speak(nav_voice::Id::k_gps_module);
+        }
+    } else if (!status.module_seen && monitor.module_was_seen) {
+        if (monitor.module_lost_us == 0) {
+            monitor.module_lost_us = now;
+        } else if (now - monitor.module_lost_us > 5 * kSecondUs) {
+            monitor.module_was_seen = false;
+            ESP_LOGW(kTag, "GPS module lost");
+            Notify("Mất kết nối GPS: kiểm tra dây", 8000);
+        }
+    } else {
+        monitor.module_lost_us = 0;
+    }
     if (module_fix && !monitor.gps_announced) {
         monitor.gps_announced = true;
+        Notify("Đã bắt được tín hiệu GPS (" + std::to_string(fix.satellites) + " vệ tinh)", 8000);
         Speak(nav_voice::Id::k_gps_ok);
+    }
+
+    // The driving screen opens by itself once the car has been moving for 5 s, once per trip
+    // (a trip ends after 5 minutes stopped).
+    if (module_fix && status.speed_kmh >= kMinAlertSpeedKmh) {
+        monitor.stopped_seconds = 0;
+        if (++monitor.moving_seconds >= 5 && !monitor.drive_opened) {
+            monitor.drive_opened = true;
+            if (drive_viewer_) {
+                drive_viewer_(1);
+            }
+        }
+    } else {
+        monitor.moving_seconds = 0;
+        if (status.speed_kmh < 5 && ++monitor.stopped_seconds >= 300) {
+            monitor.drive_opened = false;
+        }
     }
 
     if (module_fix) {
@@ -659,10 +715,15 @@ void Tick(Monitor& monitor) {
                              (flow.closed || (flow.free_kmh >= 25 && flow.current_kmh * 100 < flow.free_kmh * 45));
             if (jam && now - monitor.last_jam_alert_us > kJamRepeatUs) {
                 monitor.last_jam_alert_us = now;
-                Notify(flow.closed ? std::string("Phía trước: đường bị đóng")
-                                   : "Tắc phía trước: " + std::to_string(flow.current_kmh) + " km/h (bình thường " +
-                                         std::to_string(flow.free_kmh) + ")",
-                       10000);
+                const std::string text = flow.closed ? std::string("Phía trước: đường bị đóng")
+                                                     : "Tắc phía trước: " + std::to_string(flow.current_kmh) +
+                                                           " km/h (bình thường " + std::to_string(flow.free_kmh) + ")";
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    note_ = text;
+                    note_us_ = now;
+                }
+                Notify(text, 10000);
                 Speak(nav_voice::Id::k_jam);
             }
         }
@@ -950,6 +1011,72 @@ bool CurrentOrigin(const Config& config, double& lat, double& lon, std::string& 
 }  // namespace
 
 void SetStatusListener(std::function<void(const Status&)> listener) { status_listener_ = std::move(listener); }
+void SetDriveViewer(std::function<void(int)> viewer) { drive_viewer_ = std::move(viewer); }
+
+void MapCenter(double& lat, double& lon, std::string& label) {
+    const GpsReader::Fix fix = GpsReader::GetInstance().GetFix();
+    if (fix.valid) {
+        lat = fix.lat;
+        lon = fix.lon;
+        label = GpsReader::GetInstance().HasFreshFix() ? "GPS" : "vị trí điện thoại";
+        return;
+    }
+    const Config config = GetConfig();
+    const Place* place = FindPlace(config.places, "Nhà");
+    if (place == nullptr && !config.places.empty()) {
+        place = &config.places[0];
+    }
+    if (place != nullptr) {
+        lat = place->lat;
+        lon = place->lon;
+        label = place->name;
+        return;
+    }
+    lat = 19.8067;  // Thanh Hóa city
+    lon = 105.7852;
+    label = "Thanh Hóa";
+}
+
+std::vector<std::pair<double, double>> CamerasNear(double lat, double lon, double meters) {
+    std::vector<std::pair<double, double>> cameras;
+    for (size_t i = 0; i < nav_cameras::kBuiltInCount; ++i) {
+        const auto& camera = nav_cameras::kBuiltIn[i];
+        if (DistanceMeters(lat, lon, camera.lat, camera.lon) <= meters) {
+            cameras.emplace_back(camera.lat, camera.lon);
+        }
+    }
+    const Config config = GetConfig();
+    for (const auto& camera : config.cameras) {
+        if (DistanceMeters(lat, lon, camera.lat, camera.lon) <= meters) {
+            cameras.emplace_back(camera.lat, camera.lon);
+        }
+    }
+    return cameras;
+}
+
+bool HasKey() { return !GetConfig().key.empty(); }
+
+bool FetchMapTile(int zoom, int x, int y, std::string& png) {
+    const std::string key = GetConfig().key;
+    if (key.empty()) {
+        return false;
+    }
+    const std::string url = "https://api.tomtom.com/map/1/tile/basic/main/" + std::to_string(zoom) + "/" +
+                            std::to_string(x) + "/" + std::to_string(y) + ".png?tileSize=256&key=" + UrlEncode(key);
+    auto http = Board::GetInstance().GetNetwork()->CreateHttp(5);
+    http->SetTimeout(10000);
+    if (auto opened = http->Open("GET", url); !opened) {
+        return false;
+    }
+    auto status = http->GetStatusCode();
+    png = http->ReadAll();
+    http->Close();
+    if (!status || *status != 200) {
+        ESP_LOGW(kTag, "Map tile HTTP %d", status ? *status : 0);
+        return false;
+    }
+    return png.size() > 8;
+}
 void SetSetupViewer(std::function<void()> viewer) { setup_viewer_ = std::move(viewer); }
 void SetCanSpeak(std::function<bool()> can_speak) { can_speak_ = std::move(can_speak); }
 
@@ -1179,6 +1306,33 @@ void RegisterTools() {
             SaveConfigLocked();
             return limit > 0 ? "Robot sẽ nhắc khi chạy quá " + std::to_string(limit) + " km/h."
                              : std::string("Đã tắt nhắc tốc độ (vẫn nhắc ở camera có ghi tốc độ).");
+        });
+
+    mcp.AddTool(
+        "self.nav.drive_screen",
+        "Open or close the driving screen on the robot (big speed, speed limit, camera countdown, "
+        "and a moving TomTom map). `page`: `speed`, `map` (bản đồ) or `close`. Use when the user "
+        "asks for the driving screen, the map, màn hình lái xe, mở bản đồ. Tapping the screen "
+        "switches between speed and map.",
+        PropertyList({Property("page", kPropertyTypeString, std::string("speed"))}),
+        [](const PropertyList& properties) -> ReturnValue {
+            const std::string page = properties["page"].value<std::string>();
+            if (!drive_viewer_) {
+                return std::string("Robot này không có màn hình lái xe.");
+            }
+            if (page == "close") {
+                drive_viewer_(0);
+                return std::string("Đã đóng màn hình lái xe.");
+            }
+            drive_viewer_(page == "map" ? 2 : 1);
+            std::string text = page == "map" ? "Đã mở bản đồ." : "Đã mở màn hình lái xe.";
+            if (!GpsReader::GetInstance().ModuleSeen()) {
+                text += " Chưa có GPS nên bản đồ hiện quanh địa điểm Nhà.";
+            }
+            if (page == "map" && GetConfig().key.empty()) {
+                text += " Cần key TomTom để tải bản đồ.";
+            }
+            return text + " Chạm màn hình để đổi giữa tốc độ và bản đồ.";
         });
 
     mcp.AddTool(

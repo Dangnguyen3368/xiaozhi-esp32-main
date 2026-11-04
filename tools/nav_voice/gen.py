@@ -25,6 +25,7 @@ CLIPS = [
     ("gps_ok", "Đã bắt được tín hiệu GPS."),
     ("leave_early", "Đường hôm nay đông hơn mọi ngày, bạn nên đi sớm."),
     ("road_ok", "Đường đi hôm nay thông thoáng."),
+    ("gps_module", "Đã kết nối GPS, đang tìm vệ tinh."),
 ]
 
 
