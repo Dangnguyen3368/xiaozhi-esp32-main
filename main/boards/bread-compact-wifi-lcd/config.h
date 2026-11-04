@@ -311,4 +311,9 @@
 // A MCP Test: Control a lamp
 #define LAMP_GPIO GPIO_NUM_38
 
+// Car mode GPS module (GY-NEO6MV2, 9600 baud): module TX -> GPIO 5, module RX -> GPIO 4,
+// VCC -> 3V3 (or 5V), GND -> GND. Without a module the robot simply shows nothing.
+#define NAV_GPS_RX_PIN GPIO_NUM_5
+#define NAV_GPS_TX_PIN GPIO_NUM_4
+
 #endif // _BOARD_CONFIG_H_
