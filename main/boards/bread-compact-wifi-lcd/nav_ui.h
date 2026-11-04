@@ -74,6 +74,9 @@ private:
     static void MapTaskEntry(void* arg);
     void MapTask();
     void RenderMap();
+    void SetAlertLocked(const nav::Status& status);
+    void StopBlinkLocked();
+    static void BlinkTimer(lv_timer_t* timer);
 
     std::atomic<bool> shown_{false};
     std::atomic<bool> map_active_{false};
@@ -84,6 +87,12 @@ private:
     int height_ = 320;
     lv_obj_t* panel_ = nullptr;
     std::vector<std::unique_ptr<std::function<void()>>> handlers_;
+    // Red camera icon and red screen border that blink near a camera (and the border when speeding).
+    lv_obj_t* alert_icon_ = nullptr;
+    lv_timer_t* blink_timer_ = nullptr;
+    bool camera_alert_ = false;
+    bool speed_alert_ = false;
+    bool blink_on_ = false;
 
     // Speed page.
     lv_obj_t* gps_label_ = nullptr;

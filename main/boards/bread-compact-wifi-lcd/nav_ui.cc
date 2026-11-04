@@ -322,6 +322,37 @@ lv_obj_t* TextLabel(lv_obj_t* parent, lv_color_t color) {
     return label;
 }
 
+const lv_color_t kCameraGreen = lv_color_hex(0x4CD964);
+
+// Recolors the camera icon (its children 0, 1, 3 and 4 carry the colour).
+void SetCameraIconColor(lv_obj_t* icon, lv_color_t color) {
+    for (int index : {0, 1, 3, 4}) {
+        lv_obj_set_style_bg_color(lv_obj_get_child(icon, index), color, 0);
+    }
+}
+
+// A video camera drawn from boxes, 60 x 36: green normally, blinking red near a camera.
+lv_obj_t* CameraIcon(lv_obj_t* parent, lv_color_t red, lv_color_t dark) {
+    lv_obj_t* icon = PlainBox(parent);
+    lv_obj_set_size(icon, 60, 36);
+    auto box = [&](int x, int y, int w, int h, lv_color_t color, int radius) {
+        lv_obj_t* part = PlainBox(icon);
+        lv_obj_set_pos(part, x, y);
+        lv_obj_set_size(part, w, h);
+        lv_obj_set_style_bg_opa(part, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(part, color, 0);
+        lv_obj_set_style_radius(part, radius, 0);
+        return part;
+    };
+    box(8, 0, 14, 6, red, 2);                       // top grip
+    box(2, 5, 40, 28, red, 5);                      // body
+    box(13, 9, 20, 20, dark, LV_RADIUS_CIRCLE);     // lens ring
+    box(18, 14, 10, 10, red, LV_RADIUS_CIRCLE);     // lens
+    box(44, 11, 14, 16, red, 2);                    // front lens hood
+    box(6, 9, 5, 5, lv_color_hex(0xFFFFFF), LV_RADIUS_CIRCLE);  // recording light
+    return icon;
+}
+
 std::string GpsText(const nav::Status& status) {
     if (status.module_seen && status.has_fix) {
         return "GPS tốt: " + std::to_string(status.satellites) + " vệ tinh";
@@ -420,6 +451,7 @@ void DriveView::Hide() {
         ESP_LOGE(TAG, "Failed to lock LVGL");
         return;
     }
+    StopBlinkLocked();
     if (panel_ != nullptr) {
         lv_obj_delete(panel_);
         panel_ = nullptr;
@@ -438,6 +470,7 @@ void DriveView::Build(Page page) {
     }
     map_image_ = nullptr;
     handlers_.clear();
+    StopBlinkLocked();
     page_ = page;
     lv_display_t* display = lv_display_get_default();
     width_ = lv_display_get_horizontal_resolution(display);
@@ -463,6 +496,8 @@ void DriveView::Build(Page page) {
     if (page == Page::kSpeed) {
         gps_label_ = TextLabel(panel_, kSoft);
         lv_obj_set_pos(gps_label_, 8, 8);
+        lv_obj_set_width(gps_label_, width_ - 82);  // the camera icon sits at the top right
+        lv_label_set_long_mode(gps_label_, LV_LABEL_LONG_MODE_DOTS);
         // Big speed: three seven-segment digits.
         const int dw = std::min(56, (width_ - 40) / 3);
         const int dh = dw * 2 - 10;
@@ -560,6 +595,13 @@ void DriveView::Build(Page page) {
         UpdateMapLabelsLocked(status);
     }
 
+    lv_obj_set_style_border_color(panel_, kRed, 0);
+    lv_obj_set_style_border_width(panel_, 6, 0);
+    lv_obj_set_style_border_opa(panel_, LV_OPA_TRANSP, 0);
+    alert_icon_ = CameraIcon(panel_, kCameraGreen, kDark);
+    lv_obj_align(alert_icon_, LV_ALIGN_TOP_RIGHT, -10, page == Page::kSpeed ? 6 : 40);
+    SetAlertLocked(status);
+
     lv_obj_t* close = study_ui::AddButton(panel_, "X", kGrey, [this]() { Hide(); }, handlers_);
     lv_obj_set_size(close, 40, 32);
     lv_obj_align(close, LV_ALIGN_TOP_RIGHT, -4, 4);
@@ -629,8 +671,63 @@ void DriveView::Update(const nav::Status& status) {
         } else {
             UpdateMapLabelsLocked(status);
         }
+        SetAlertLocked(status);
     }
     lvgl_port_unlock();
+}
+
+void DriveView::StopBlinkLocked() {
+    if (blink_timer_ != nullptr) {
+        lv_timer_delete(blink_timer_);
+        blink_timer_ = nullptr;
+    }
+    alert_icon_ = nullptr;
+    camera_alert_ = false;
+    speed_alert_ = false;
+    blink_on_ = false;
+}
+
+void DriveView::SetAlertLocked(const nav::Status& status) {
+    if (panel_ == nullptr || alert_icon_ == nullptr) {
+        return;
+    }
+    // Same distance as the spoken camera alert.
+    camera_alert_ = status.camera_m >= 0 && status.camera_m <= 500;
+    speed_alert_ = status.overspeed;
+    if ((camera_alert_ || speed_alert_) && blink_timer_ == nullptr) {
+        blink_on_ = false;
+        blink_timer_ = lv_timer_create(BlinkTimer, 400, this);
+        BlinkTimer(blink_timer_);
+    } else if (!camera_alert_ && !speed_alert_ && blink_timer_ != nullptr) {
+        lv_timer_delete(blink_timer_);
+        blink_timer_ = nullptr;
+        blink_on_ = false;
+        SetCameraIconColor(alert_icon_, kCameraGreen);
+        lv_obj_remove_flag(alert_icon_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_style_border_opa(panel_, LV_OPA_TRANSP, 0);
+    }
+}
+
+// Runs in the LVGL task (lock held).
+void DriveView::BlinkTimer(lv_timer_t* timer) {
+    auto* self = static_cast<DriveView*>(lv_timer_get_user_data(timer));
+    if (self->panel_ == nullptr || self->alert_icon_ == nullptr) {
+        return;
+    }
+    self->blink_on_ = !self->blink_on_;
+    if (self->camera_alert_) {
+        // Red on, off, red on...
+        SetCameraIconColor(self->alert_icon_, kRed);
+        if (self->blink_on_) {
+            lv_obj_remove_flag(self->alert_icon_, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(self->alert_icon_, LV_OBJ_FLAG_HIDDEN);
+        }
+    } else {
+        SetCameraIconColor(self->alert_icon_, kCameraGreen);
+        lv_obj_remove_flag(self->alert_icon_, LV_OBJ_FLAG_HIDDEN);
+    }
+    lv_obj_set_style_border_opa(self->panel_, self->blink_on_ ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
 }
 
 void DriveView::MapTaskEntry(void* arg) { static_cast<DriveView*>(arg)->MapTask(); }
