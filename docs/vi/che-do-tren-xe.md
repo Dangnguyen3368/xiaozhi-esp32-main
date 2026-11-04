@@ -38,7 +38,7 @@ Cắm module GPS vào thì robot nói "Đã kết nối GPS, đang tìm vệ tin
 
 ## Cài đặt
 
-Nói "cài đặt dẫn đường" (hoặc gọi `self.nav.setup`): màn hình hiện mã QR, điện thoại cùng mạng quét để mở `http://<IP robot>:8081/xe`.
+Nói "cài đặt dẫn đường" (hoặc gọi `self.nav.settings` với action `setup`): màn hình hiện mã QR, điện thoại cùng mạng quét để mở `http://<IP robot>:8081/xe`.
 
 1. **Key TomTom** (miễn phí 2.500 lượt/ngày): đăng ký ở developer.tomtom.com → Dashboard → Keys, chép key dán vào trang. Không có key thì camera và tốc độ vẫn chạy, chỉ mất phần tắc đường.
 2. **Địa điểm:** mỗi dòng `Tên | địa chỉ` hoặc `Tên | vĩ độ, kinh độ` (Google Maps: nhấn giữ một điểm rồi chép số).

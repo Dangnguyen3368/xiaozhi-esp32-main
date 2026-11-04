@@ -1309,151 +1309,127 @@ void RegisterTools() {
                    " Robot không dẫn đường từng ngã rẽ; muốn chỉ đường thì dùng Google Maps trên điện thoại.";
         });
 
-    mcp.AddTool(
-        "self.nav.status",
-        "Car mode status: GPS signal, current speed, speed limit, camera ahead, saved places, morning "
-        "road check. Use when the user asks about GPS, their speed, saved places or the car settings.",
-        PropertyList(), [](const PropertyList&) -> ReturnValue {
-            const Config config = GetConfig();
-            Status status;
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                status = last_status_;
-            }
-            std::string text = status.module_seen ? (status.has_fix ? "GPS tốt (" + std::to_string(status.satellites) +
-                                                                          " vệ tinh). "
-                                                                    : std::string("Module GPS đang dò vệ tinh. "))
-                                                  : std::string("Chưa thấy module GPS. ");
-            if (status.has_fix) {
-                text += "Tốc độ " + std::to_string(status.speed_kmh) + " km/h. ";
-            }
-            if (status.road_limit_kmh > 0) {
-                text += "Biển đường " + (status.road.empty() ? std::string("này") : status.road) + ": tối đa " +
-                        std::to_string(status.road_limit_kmh) + " km/h. ";
-            } else if (!status.road.empty()) {
-                text += "Đang đi đường " + status.road + " (TomTom không có biển tốc độ đường này). ";
-            }
-            text += status.limit_kmh > 0 ? "Robot nhắc khi quá " + std::to_string(status.limit_kmh) + " km/h. "
-                                         : std::string("Chưa có giới hạn tốc độ. ");
-            if (status.camera_m >= 0) {
-                text += "Camera phía trước " + std::to_string(status.camera_m) + " m. ";
-            }
-            text += "Địa điểm: " + PlaceNames(config.places) + ". ";
-            text += std::to_string(config.cameras.size()) + " camera tự thêm, " +
-                    std::to_string(nav_cameras::kBuiltInCount) + " camera có sẵn. ";
-            if (config.am_minute >= 0) {
-                char hhmm[24];
-                snprintf(hhmm, sizeof(hhmm), "%02d:%02d", (config.am_minute / 60) % 24, config.am_minute % 60);
-                text += "Báo đường buổi sáng lúc " + std::string(hhmm) + " từ " + config.am_from + " đến " +
-                        config.am_to + ". ";
-            }
-            text += config.key.empty() ? "Chưa có key TomTom." : "Đã có key TomTom.";
-            return text;
-        });
+    auto car_status = []() -> ReturnValue {
+        const Config config = GetConfig();
+        Status status;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            status = last_status_;
+        }
+        std::string text = status.module_seen ? (status.has_fix ? "GPS tốt (" + std::to_string(status.satellites) +
+                                                                      " vệ tinh). "
+                                                                : std::string("Module GPS đang dò vệ tinh. "))
+                                              : std::string("Chưa thấy module GPS. ");
+        if (status.has_fix) {
+            text += "Tốc độ " + std::to_string(status.speed_kmh) + " km/h. ";
+        }
+        if (status.road_limit_kmh > 0) {
+            text += "Biển đường " + (status.road.empty() ? std::string("này") : status.road) + ": tối đa " +
+                    std::to_string(status.road_limit_kmh) + " km/h. ";
+        } else if (!status.road.empty()) {
+            text += "Đang đi đường " + status.road + " (TomTom không có biển tốc độ đường này). ";
+        }
+        text += status.limit_kmh > 0 ? "Robot nhắc khi quá " + std::to_string(status.limit_kmh) + " km/h. "
+                                     : std::string("Chưa có giới hạn tốc độ. ");
+        if (status.camera_m >= 0) {
+            text += "Camera phía trước " + std::to_string(status.camera_m) + " m. ";
+        }
+        text += "Địa điểm: " + PlaceNames(config.places) + ". ";
+        text += std::to_string(config.cameras.size()) + " camera tự thêm, " +
+                std::to_string(nav_cameras::kBuiltInCount) + " camera có sẵn. ";
+        if (config.am_minute >= 0) {
+            char hhmm[24];
+            snprintf(hhmm, sizeof(hhmm), "%02d:%02d", (config.am_minute / 60) % 24, config.am_minute % 60);
+            text += "Báo đường buổi sáng lúc " + std::string(hhmm) + " từ " + config.am_from + " đến " +
+                    config.am_to + ". ";
+        }
+        text += config.key.empty() ? "Chưa có key TomTom." : "Đã có key TomTom.";
+        return text;
+    };
 
-    mcp.AddTool(
-        "self.nav.camera",
-        "Mark or remove a traffic/speed camera at the car's current GPS position. `action`=`add` when "
-        "the user says đánh dấu camera ở đây / ở đây có camera (`limit_kmh` = the speed limit there if "
-        "they say it, else 0); `remove` deletes the user's camera nearest to here (within 150 m).",
-        PropertyList({Property("action", kPropertyTypeString, std::string("add")),
-                      Property("limit_kmh", kPropertyTypeInteger, 0, 0, 150)}),
-        [](const PropertyList& properties) -> ReturnValue {
+    auto mark_camera = [](bool remove, int limit_kmh) -> ReturnValue {
+        const GpsReader::Fix fix = GpsReader::GetInstance().GetFix();
+        if (!fix.valid) {
+            return std::string("Chưa có vị trí GPS nên chưa đánh dấu được.");
+        }
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (remove) {
+            int best = -1;
+            double best_m = 150;
+            for (size_t i = 0; i < config_.cameras.size(); ++i) {
+                const double meters = DistanceMeters(fix.lat, fix.lon, config_.cameras[i].lat, config_.cameras[i].lon);
+                if (meters < best_m) {
+                    best = static_cast<int>(i);
+                    best_m = meters;
+                }
+            }
+            if (best < 0) {
+                return std::string("Không có camera tự thêm nào trong vòng 150 m.");
+            }
+            config_.cameras.erase(config_.cameras.begin() + best);
+            SaveConfigLocked();
+            return std::string("Đã xóa camera gần nhất.");
+        }
+        if (config_.cameras.size() >= kMaxUserCameras) {
+            return std::string("Đã đủ 150 camera, xóa bớt trên trang cài đặt.");
+        }
+        UserCamera camera;
+        camera.lat = fix.lat;
+        camera.lon = fix.lon;
+        camera.limit_kmh = limit_kmh;
+        config_.cameras.push_back(camera);
+        SaveConfigLocked();
+        return "Đã đánh dấu camera ở đây" +
+               (camera.limit_kmh > 0 ? ", tốc độ tối đa " + std::to_string(camera.limit_kmh) + " km/h" : std::string()) +
+               ". Lần sau đi qua robot sẽ nhắc trước.";
+    };
+
+    auto save_place = [](const std::string& name_in, const std::string& address_in) -> ReturnValue {
+        const std::string name = Trim(name_in);
+        const std::string address = Trim(address_in);
+        if (name.empty() || name.find('|') != std::string::npos) {
+            return std::string("Tên địa điểm không hợp lệ.");
+        }
+        Place place;
+        place.name = name;
+        const Config config = GetConfig();
+        if (address.empty()) {
             const GpsReader::Fix fix = GpsReader::GetInstance().GetFix();
             if (!fix.valid) {
-                return std::string("Chưa có vị trí GPS nên chưa đánh dấu được.");
+                return std::string("Chưa có vị trí GPS. Hãy nói kèm địa chỉ, hoặc nhập trên trang cài đặt.");
             }
-            const std::string action = properties["action"].value<std::string>();
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (action == "remove") {
-                int best = -1;
-                double best_m = 150;
-                for (size_t i = 0; i < config_.cameras.size(); ++i) {
-                    const double meters = DistanceMeters(fix.lat, fix.lon, config_.cameras[i].lat, config_.cameras[i].lon);
-                    if (meters < best_m) {
-                        best = static_cast<int>(i);
-                        best_m = meters;
-                    }
-                }
-                if (best < 0) {
-                    return std::string("Không có camera tự thêm nào trong vòng 150 m.");
-                }
-                config_.cameras.erase(config_.cameras.begin() + best);
-                SaveConfigLocked();
-                return std::string("Đã xóa camera gần nhất.");
+            place.lat = fix.lat;
+            place.lon = fix.lon;
+        } else {
+            std::string error;
+            if (!ParseLatLon(address, place.lat, place.lon) &&
+                !Geocode(config.key, address, place.lat, place.lon, error)) {
+                return "Không lưu được: " + error + ".";
             }
-            if (config_.cameras.size() >= kMaxUserCameras) {
-                return std::string("Đã đủ 150 camera, xóa bớt trên trang cài đặt.");
+        }
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (auto it = config_.places.begin(); it != config_.places.end(); ++it) {
+            if (NameKey(it->name) == NameKey(name)) {
+                config_.places.erase(it);
+                break;
             }
-            UserCamera camera;
-            camera.lat = fix.lat;
-            camera.lon = fix.lon;
-            camera.limit_kmh = properties["limit_kmh"].value<int>();
-            config_.cameras.push_back(camera);
-            SaveConfigLocked();
-            return "Đã đánh dấu camera ở đây" +
-                   (camera.limit_kmh > 0 ? ", tốc độ tối đa " + std::to_string(camera.limit_kmh) + " km/h" : std::string()) +
-                   ". Lần sau đi qua robot sẽ nhắc trước.";
-        });
+        }
+        if (config_.places.size() >= kMaxPlaces) {
+            return std::string("Đã đủ 12 địa điểm, xóa bớt trên trang cài đặt.");
+        }
+        config_.places.push_back(place);
+        SaveConfigLocked();
+        return "Đã lưu địa điểm " + name + ".";
+    };
 
-    mcp.AddTool(
-        "self.nav.place",
-        "Save a named place for traffic questions (Nhà, Trường, Cơ quan...). `address` empty = the "
-        "car's current GPS position; otherwise an address or 'lat, lon'.",
-        PropertyList({Property("name", kPropertyTypeString), Property("address", kPropertyTypeString, std::string(""))}),
-        [](const PropertyList& properties) -> ReturnValue {
-            const std::string name = Trim(properties["name"].value<std::string>());
-            const std::string address = Trim(properties["address"].value<std::string>());
-            if (name.empty() || name.find('|') != std::string::npos) {
-                return std::string("Tên địa điểm không hợp lệ.");
-            }
-            Place place;
-            place.name = name;
-            const Config config = GetConfig();
-            if (address.empty()) {
-                const GpsReader::Fix fix = GpsReader::GetInstance().GetFix();
-                if (!fix.valid) {
-                    return std::string("Chưa có vị trí GPS. Hãy nói kèm địa chỉ, hoặc nhập trên trang cài đặt.");
-                }
-                place.lat = fix.lat;
-                place.lon = fix.lon;
-            } else {
-                std::string error;
-                if (!ParseLatLon(address, place.lat, place.lon) &&
-                    !Geocode(config.key, address, place.lat, place.lon, error)) {
-                    return "Không lưu được: " + error + ".";
-                }
-            }
-            std::lock_guard<std::mutex> lock(mutex_);
-            for (auto it = config_.places.begin(); it != config_.places.end(); ++it) {
-                if (NameKey(it->name) == NameKey(name)) {
-                    config_.places.erase(it);
-                    break;
-                }
-            }
-            if (config_.places.size() >= kMaxPlaces) {
-                return std::string("Đã đủ 12 địa điểm, xóa bớt trên trang cài đặt.");
-            }
-            config_.places.push_back(place);
-            SaveConfigLocked();
-            return "Đã lưu địa điểm " + name + ".";
-        });
-
-    mcp.AddTool(
-        "self.nav.speed_limit",
-        "Set the user's own maximum speed (km/h). The robot reads each road's speed limit from TomTom by "
-        "itself and warns at the lower of the two; this number is also used where the road limit is "
-        "unknown. 0 = only road and camera limits.",
-        PropertyList({Property("limit_kmh", kPropertyTypeInteger, 0, 150)}),
-        [](const PropertyList& properties) -> ReturnValue {
-            const int limit = properties["limit_kmh"].value<int>();
-            std::lock_guard<std::mutex> lock(mutex_);
-            config_.limit_kmh = limit;
-            SaveConfigLocked();
-            return limit > 0 ? "Đã đặt tốc độ tối đa của bạn " + std::to_string(limit) +
-                                   " km/h. Đường có biển thấp hơn thì robot theo biển."
-                             : std::string("Đã bỏ tốc độ tự đặt, robot chỉ nhắc theo biển đường và camera.");
-        });
+    auto speed_limit = [](int limit) -> ReturnValue {
+        std::lock_guard<std::mutex> lock(mutex_);
+        config_.limit_kmh = limit;
+        SaveConfigLocked();
+        return limit > 0 ? "Đã đặt tốc độ tối đa của bạn " + std::to_string(limit) +
+                               " km/h. Đường có biển thấp hơn thì robot theo biển."
+                         : std::string("Đã bỏ tốc độ tự đặt, robot chỉ nhắc theo biển đường và camera.");
+    };
 
     mcp.AddTool(
         "self.nav.drive_screen",
@@ -1482,21 +1458,53 @@ void RegisterTools() {
             return text + " Chạm màn hình để đổi giữa tốc độ và bản đồ.";
         });
 
+    auto show_setup = []() -> ReturnValue {
+        const std::string url = SetupUrl();
+        if (url.empty()) {
+            return std::string("Robot chưa có Wi-Fi.");
+        }
+        if (setup_viewer_) {
+            setup_viewer_();
+        } else {
+            Notify("Mở: " + url, 30000);
+        }
+        return "Đã hiện mã QR trang cài đặt (" + url + "). Bảo người dùng quét bằng điện thoại cùng Wi-Fi.";
+    };
+
     mcp.AddTool(
-        "self.nav.setup",
-        "Show the QR code of the car-mode settings page (TomTom key, places, cameras, morning road "
-        "check). Use when the user wants to set up navigation/traffic/car mode (cài đặt dẫn đường).",
-        PropertyList(), [](const PropertyList&) -> ReturnValue {
-            const std::string url = SetupUrl();
-            if (url.empty()) {
-                return std::string("Robot chưa có Wi-Fi.");
+        "self.nav.settings",
+        "Car mode settings and status. `action`:\n"
+        "- `status`: GPS signal, current speed, speed limit, camera ahead, saved places, morning road "
+        "check. Use when the user asks about GPS, their speed, saved places or the car settings.\n"
+        "- `setup`: show the QR code of the car-mode settings page (TomTom key, places, cameras, morning "
+        "road check). Use for cài đặt dẫn đường / chế độ trên xe.\n"
+        "- `add_camera` / `remove_camera`: mark a traffic/speed camera at the car's current GPS position "
+        "(đánh dấu camera ở đây; `limit_kmh` = the limit there if the user says it, else 0), or delete "
+        "the user's camera nearest to here (within 150 m).\n"
+        "- `save_place`: save a named place for traffic questions (`name` e.g. Nhà, Trường, Cơ quan; "
+        "`address` empty = current GPS position, otherwise an address or 'lat, lon').\n"
+        "- `speed_limit`: set the user's own maximum speed `limit_kmh` (0 = only road and camera "
+        "limits). The robot also reads each road's limit from TomTom and warns at the lower one.",
+        PropertyList({Property("action", kPropertyTypeString, std::string("status")),
+                      Property("name", kPropertyTypeString, std::string("")),
+                      Property("address", kPropertyTypeString, std::string("")),
+                      Property("limit_kmh", kPropertyTypeInteger, 0, 0, 150)}),
+        [car_status, show_setup, mark_camera, save_place, speed_limit](const PropertyList& properties) -> ReturnValue {
+            const std::string action = properties["action"].value<std::string>();
+            const int limit_kmh = properties["limit_kmh"].value<int>();
+            if (action == "setup") {
+                return show_setup();
             }
-            if (setup_viewer_) {
-                setup_viewer_();
-            } else {
-                Notify("Mở: " + url, 30000);
+            if (action == "add_camera" || action == "remove_camera") {
+                return mark_camera(action == "remove_camera", limit_kmh);
             }
-            return "Đã hiện mã QR trang cài đặt (" + url + "). Bảo người dùng quét bằng điện thoại cùng Wi-Fi.";
+            if (action == "save_place") {
+                return save_place(properties["name"].value<std::string>(), properties["address"].value<std::string>());
+            }
+            if (action == "speed_limit") {
+                return speed_limit(limit_kmh);
+            }
+            return car_status();
         });
 }
 
