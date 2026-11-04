@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <algorithm>
 #include <map>
@@ -45,6 +46,14 @@ constexpr int64_t kCameraRepeatUs = 5 * 60 * kSecondUs;
 constexpr int64_t kOverspeedRepeatUs = 30 * kSecondUs;
 constexpr int64_t kJamCheckUs = 120 * kSecondUs;
 constexpr int64_t kJamRepeatUs = 10 * 60 * kSecondUs;
+// Road speed limit lookups (TomTom reverse geocoding): after 250 m driven, at most every 10 s, and
+// at least every 60 s while moving. A result is trusted for 90 s. The free key allows about 2,500
+// requests a day, so the robot keeps to 1,500 lookups per 24 hours.
+constexpr int64_t kRoadMinGapUs = 10 * kSecondUs;
+constexpr int64_t kRoadMaxGapUs = 60 * kSecondUs;
+constexpr double kRoadStepMeters = 250;
+constexpr int64_t kRoadValidUs = 90 * kSecondUs;
+constexpr int kRoadDailyMax = 1500;
 
 struct Place {
     std::string name;
@@ -79,6 +88,13 @@ struct Route {
     int delay_s = 0;
 };
 
+struct Road {
+    bool ok = false;
+    std::string error;
+    int limit_kmh = 0;    // 0 = TomTom has no limit for this road
+    std::string street;
+};
+
 struct Flow {
     bool ok = false;
     std::string error;
@@ -95,6 +111,10 @@ std::function<void()> setup_viewer_;
 std::function<void(int)> drive_viewer_;
 std::string note_;            // last traffic alert for the driving screen
 int64_t note_us_ = 0;
+int road_limit_kmh_ = 0;      // last road speed limit from TomTom, 0 = unknown
+std::string road_name_;
+int64_t road_us_ = 0;         // when it was read, 0 = never
+TaskHandle_t net_task_ = nullptr;
 std::function<bool()> can_speak_;
 httpd_handle_t server_ = nullptr;
 TaskHandle_t task_ = nullptr;
@@ -509,6 +529,42 @@ Flow GetFlow(const std::string& key, double lat, double lon) {
     return flow;
 }
 
+// The street at a point and its speed limit. `heading` helps TomTom pick the right side of a
+// divided road.
+Road GetRoad(const std::string& key, double lat, double lon, float heading) {
+    Road road;
+    const std::string url = "https://api.tomtom.com/search/2/reverseGeocode/" + Coord(lat) + "," + Coord(lon) +
+                            ".json?returnSpeedLimit=true&radius=50&language=vi-VN&heading=" +
+                            std::to_string(static_cast<int>(heading) % 360) + "&key=" + UrlEncode(key);
+    cJSON* json = nullptr;
+    if (!HttpGetJson(url, json, road.error)) {
+        return road;
+    }
+    cJSON* addresses = cJSON_GetObjectItem(json, "addresses");
+    cJSON* first = cJSON_IsArray(addresses) ? cJSON_GetArrayItem(addresses, 0) : nullptr;
+    cJSON* address = first ? cJSON_GetObjectItem(first, "address") : nullptr;
+    if (address != nullptr) {
+        road.ok = true;
+        cJSON* street = cJSON_GetObjectItem(address, "streetName");
+        if (cJSON_IsString(street)) {
+            road.street = street->valuestring;
+        }
+        // "50.00KPH" or "30.00MPH"
+        cJSON* limit = cJSON_GetObjectItem(address, "speedLimit");
+        if (cJSON_IsString(limit)) {
+            double value = atof(limit->valuestring);
+            if (strstr(limit->valuestring, "MPH") != nullptr) {
+                value *= 1.609344;
+            }
+            road.limit_kmh = value >= 5 && value <= 150 ? static_cast<int>(value + 0.5) : 0;
+        }
+    } else {
+        road.error = "TomTom không biết đường này";
+    }
+    cJSON_Delete(json);
+    return road;
+}
+
 std::string RouteSentence(const std::string& from, const std::string& to, const Route& route) {
     std::string text = "Từ " + from + " đến " + to + ": " + Km(route.length_m) + ", khoảng " + Minutes(route.time_s) +
                        " với giao thông lúc này";
@@ -526,8 +582,6 @@ struct Monitor {
     std::map<int, int64_t> camera_alerts;  // camera id -> last alert
     int over_count = 0;
     int64_t last_over_us = -kOverspeedRepeatUs;
-    int64_t last_jam_check_us = 0;
-    int64_t last_jam_alert_us = -kJamRepeatUs;
     bool gps_announced = false;
     bool module_was_seen = false;
     int64_t module_lost_us = 0;
@@ -592,7 +646,21 @@ void Tick(Monitor& monitor) {
     status.has_fix = fix.valid;
     status.satellites = fix.satellites;
     status.speed_kmh = module_fix ? static_cast<int>(fix.speed_kmh + 0.5f) : 0;
-    status.limit_kmh = config.limit_kmh;
+    // The road's own limit (from TomTom) when known; the user's number is a personal cap and the
+    // fallback where TomTom has no data.
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (road_us_ != 0 && now - road_us_ < kRoadValidUs) {
+            status.road_limit_kmh = road_limit_kmh_;
+            status.road = road_name_;
+        }
+    }
+    if (status.road_limit_kmh > 0) {
+        status.limit_kmh = config.limit_kmh > 0 ? std::min(config.limit_kmh, status.road_limit_kmh)
+                                                : status.road_limit_kmh;
+    } else {
+        status.limit_kmh = config.limit_kmh;
+    }
 
     status.lat = fix.lat;
     status.lon = fix.lon;
@@ -705,16 +773,86 @@ void Tick(Monitor& monitor) {
             monitor.over_count = 0;
         }
 
+    }
+
+    CheckMorning(monitor, config);
+
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        last_status_ = status;
+    }
+    if (status_listener_) {
+        status_listener_(status);
+    }
+}
+
+// Network lookups run here so a slow request never delays the 1 s alerts in Tick.
+void NetTask(void*) {
+    int64_t last_jam_check_us = 0;
+    int64_t last_jam_alert_us = -kJamRepeatUs;
+    int64_t last_road_us = -kRoadMaxGapUs;
+    double road_lat = 0, road_lon = 0;
+    int64_t budget_start_us = 0;
+    int road_lookups = 0;
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        auto& gps = GpsReader::GetInstance();
+        if (!gps.HasFreshFix()) {
+            continue;
+        }
+        const Config config = GetConfig();
+        if (config.key.empty()) {
+            continue;
+        }
+        const GpsReader::Fix fix = gps.GetFix();
+        const int speed_kmh = static_cast<int>(fix.speed_kmh + 0.5f);
+        const bool moving = speed_kmh >= kMinAlertSpeedKmh;
+        const int64_t now = esp_timer_get_time();
+
+        // Speed limit of the road being driven.
+        if (now - budget_start_us > 24 * 3600 * kSecondUs) {
+            budget_start_us = now;
+            road_lookups = 0;
+        }
+        const double moved = DistanceMeters(road_lat, road_lon, fix.lat, fix.lon);
+        const bool due = (now - last_road_us > kRoadMinGapUs && moved > kRoadStepMeters) ||
+                         (now - last_road_us > kRoadMaxGapUs && moved > 50);
+        if (speed_kmh >= 5 && due && road_lookups < kRoadDailyMax) {
+            last_road_us = now;
+            road_lat = fix.lat;
+            road_lon = fix.lon;
+            ++road_lookups;
+            const Road road = GetRoad(config.key, fix.lat, fix.lon, fix.course_deg);
+            if (road.ok) {
+                int previous = 0;
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    previous = road_us_ != 0 && now - road_us_ < kRoadValidUs ? road_limit_kmh_ : 0;
+                    road_limit_kmh_ = road.limit_kmh;
+                    road_name_ = road.street;
+                    road_us_ = now;
+                }
+                ESP_LOGI(kTag, "Road: %s, limit %d km/h", road.street.c_str(), road.limit_kmh);
+                if (road.limit_kmh > 0 && road.limit_kmh != previous) {
+                    Notify("Tốc độ tối đa " + std::to_string(road.limit_kmh) + " km/h" +
+                               (road.street.empty() ? std::string() : " - " + road.street),
+                           6000);
+                }
+            } else {
+                ESP_LOGW(kTag, "Road lookup failed: %s", road.error.c_str());
+            }
+        }
+
         // Traffic about 1 km ahead, every 2 minutes while driving.
-        if (!config.key.empty() && moving && now - monitor.last_jam_check_us > kJamCheckUs) {
-            monitor.last_jam_check_us = now;
+        if (moving && now - last_jam_check_us > kJamCheckUs) {
+            last_jam_check_us = now;
             double lat = 0, lon = 0;
             PointAhead(fix.lat, fix.lon, fix.course_deg, 1000, lat, lon);
             const Flow flow = GetFlow(config.key, lat, lon);
             const bool jam = flow.ok && flow.confidence >= 0.5f &&
                              (flow.closed || (flow.free_kmh >= 25 && flow.current_kmh * 100 < flow.free_kmh * 45));
-            if (jam && now - monitor.last_jam_alert_us > kJamRepeatUs) {
-                monitor.last_jam_alert_us = now;
+            if (jam && now - last_jam_alert_us > kJamRepeatUs) {
+                last_jam_alert_us = now;
                 const std::string text = flow.closed ? std::string("Phía trước: đường bị đóng")
                                                      : "Tắc phía trước: " + std::to_string(flow.current_kmh) +
                                                            " km/h (bình thường " + std::to_string(flow.free_kmh) + ")";
@@ -727,16 +865,6 @@ void Tick(Monitor& monitor) {
                 Speak(nav_voice::Id::k_jam);
             }
         }
-    }
-
-    CheckMorning(monitor, config);
-
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        last_status_ = status;
-    }
-    if (status_listener_) {
-        status_listener_(status);
     }
 }
 
@@ -798,8 +926,9 @@ std::string ConfigPage(const std::string& message) {
     page += "<label>Đi bằng</label><select name=mode><option value=car" +
             std::string(config.mode != "motorcycle" ? " selected" : "") + ">Ô tô</option><option value=motorcycle" +
             std::string(config.mode == "motorcycle" ? " selected" : "") + ">Xe máy</option></select>";
-    page += "<label>Tốc độ tối đa của bạn (km/h, 0 = tắt)</label><input name=limit type=number min=0 max=150 value=" +
-            std::to_string(config.limit_kmh) + "><small>Gần camera có ghi tốc độ thì robot lấy số nhỏ hơn.</small>";
+    page += "<label>Tốc độ tối đa của bạn (km/h, 0 = chỉ theo biển)</label><input name=limit type=number min=0 max=150 value=" +
+            std::to_string(config.limit_kmh) + "><small>Khi có GPS và key TomTom, robot tự đọc biển tốc độ của đường đang đi và lấy số nhỏ hơn. "
+            "Đường TomTom không có dữ liệu thì dùng số này.</small>";
     page += "<label>Địa điểm (mỗi dòng: Tên | địa chỉ hoặc tọa độ)</label><textarea name=places>" +
             HtmlEscape(places) +
             "</textarea><small>Ví dụ: Trường | 19.8075, 105.7764. Tọa độ: trên Google Maps nhấn giữ một điểm "
@@ -1104,6 +1233,7 @@ void Start(gpio_num_t rx, gpio_num_t tx) {
     GpsReader::GetInstance().Start(rx, tx);
     StartServer();
     xTaskCreate(MonitorTask, "nav", 8192, nullptr, 2, &task_);
+    xTaskCreate(NetTask, "nav_net", 8192, nullptr, 1, &net_task_);
 }
 
 void RegisterTools() {
@@ -1197,8 +1327,14 @@ void RegisterTools() {
             if (status.has_fix) {
                 text += "Tốc độ " + std::to_string(status.speed_kmh) + " km/h. ";
             }
-            text += status.limit_kmh > 0 ? "Giới hạn " + std::to_string(status.limit_kmh) + " km/h. "
-                                         : std::string("Chưa đặt giới hạn tốc độ. ");
+            if (status.road_limit_kmh > 0) {
+                text += "Biển đường " + (status.road.empty() ? std::string("này") : status.road) + ": tối đa " +
+                        std::to_string(status.road_limit_kmh) + " km/h. ";
+            } else if (!status.road.empty()) {
+                text += "Đang đi đường " + status.road + " (TomTom không có biển tốc độ đường này). ";
+            }
+            text += status.limit_kmh > 0 ? "Robot nhắc khi quá " + std::to_string(status.limit_kmh) + " km/h. "
+                                         : std::string("Chưa có giới hạn tốc độ. ");
             if (status.camera_m >= 0) {
                 text += "Camera phía trước " + std::to_string(status.camera_m) + " m. ";
             }
@@ -1305,15 +1441,18 @@ void RegisterTools() {
 
     mcp.AddTool(
         "self.nav.speed_limit",
-        "Set the speed (km/h) above which the robot warns the driver; 0 turns the warning off.",
+        "Set the user's own maximum speed (km/h). The robot reads each road's speed limit from TomTom by "
+        "itself and warns at the lower of the two; this number is also used where the road limit is "
+        "unknown. 0 = only road and camera limits.",
         PropertyList({Property("limit_kmh", kPropertyTypeInteger, 0, 150)}),
         [](const PropertyList& properties) -> ReturnValue {
             const int limit = properties["limit_kmh"].value<int>();
             std::lock_guard<std::mutex> lock(mutex_);
             config_.limit_kmh = limit;
             SaveConfigLocked();
-            return limit > 0 ? "Robot sẽ nhắc khi chạy quá " + std::to_string(limit) + " km/h."
-                             : std::string("Đã tắt nhắc tốc độ (vẫn nhắc ở camera có ghi tốc độ).");
+            return limit > 0 ? "Đã đặt tốc độ tối đa của bạn " + std::to_string(limit) +
+                                   " km/h. Đường có biển thấp hơn thì robot theo biển."
+                             : std::string("Đã bỏ tốc độ tự đặt, robot chỉ nhắc theo biển đường và camera.");
         });
 
     mcp.AddTool(

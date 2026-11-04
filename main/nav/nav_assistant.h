@@ -10,7 +10,8 @@
 // Car mode: the robot rides in the car on the phone's Wi-Fi hotspot with a GPS module
 // (GY-NEO6MV2) and
 //  - warns before speed cameras (OpenStreetMap list + cameras the user marks by voice/web page),
-//  - warns when driving faster than the speed limit the user set (or a camera's limit),
+//  - warns when driving faster than the road's speed limit (TomTom), a camera's limit or the
+//    user's own maximum, whichever is lowest,
 //  - warns about a traffic jam about 1 km ahead (TomTom traffic flow, needs a free API key),
 //  - answers "how long to X / is the road jammed" by voice (TomTom routing with live traffic),
 //  - checks the road to work/school every morning and says to leave early when it is slow.
@@ -22,7 +23,9 @@ struct Status {
     bool has_fix = false;      // a position is known (module or phone)
     int satellites = 0;
     int speed_kmh = 0;
-    int limit_kmh = 0;         // 0 = none
+    int limit_kmh = 0;         // the limit the robot warns at (road, camera or the user's), 0 = none
+    int road_limit_kmh = 0;    // the road's own limit from TomTom, 0 = unknown
+    std::string road;          // street name from TomTom, empty = unknown
     int camera_m = -1;         // distance to the camera ahead, -1 = none near
     bool overspeed = false;
     double lat = 0;            // valid when has_fix

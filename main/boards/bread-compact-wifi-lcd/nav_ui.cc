@@ -580,11 +580,22 @@ void DriveView::UpdateSpeedPageLocked(const nav::Status& status) {
         lv_bar_set_value(camera_bar_, 700 - std::min(status.camera_m, 700), LV_ANIM_OFF);
         lv_obj_remove_flag(camera_bar_, LV_OBJ_FLAG_HIDDEN);
     } else {
-        lv_label_set_text(camera_label_, status.limit_kmh > 0 ? "Không có camera gần" : "Chưa đặt giới hạn tốc độ");
+        std::string text;
+        if (status.road_limit_kmh > 0) {
+            text = "Biển đường";
+        } else if (status.limit_kmh > 0) {
+            text = "Tốc độ tự đặt";
+        } else {
+            text = "Chưa có giới hạn";
+        }
+        lv_label_set_text(camera_label_, text.c_str());
         lv_obj_set_style_text_color(camera_label_, kSoft, 0);
         lv_obj_add_flag(camera_bar_, LV_OBJ_FLAG_HIDDEN);
     }
     std::string note = status.note;
+    if (note.empty() && !status.road.empty()) {
+        note = "Đường " + status.road;
+    }
     if (note.empty()) {
         note = status.module_seen ? "Chạm màn hình để xem bản đồ" : "Chưa cắm GPS (TX vào GPIO 5, RX vào GPIO 4) · chạm để xem bản đồ";
     }

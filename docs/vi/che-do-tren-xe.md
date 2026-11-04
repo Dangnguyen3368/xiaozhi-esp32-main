@@ -20,7 +20,8 @@ Trên xe, robot vào mạng bằng điểm phát Wi-Fi của điện thoại: th
 ## Robot làm gì
 
 - **Camera:** còn khoảng 500 m thì robot nói "Phía trước có camera giám sát, chú ý tốc độ" và hiện khoảng cách. Có sẵn 49 camera từ OpenStreetMap (ở Việt Nam còn thiếu nhiều). Đi qua camera thì nói "đánh dấu camera ở đây" (có thể kèm "tốc độ 60") để robot nhớ.
-- **Quá tốc độ:** chạy quá giới hạn bạn đặt (hoặc giới hạn ghi ở camera gần đó) hơn 3 km/h trong 3 giây thì robot nhắc, tối đa 30 giây một lần.
+- **Biển tốc độ của đường:** khi có GPS, có key TomTom và xe đang chạy, robot hỏi TomTom tốc độ tối đa của đoạn đường đang đi (khoảng mỗi 250 m, ít nhất mỗi phút một lần, không quá 1.500 lần một ngày để không hết lượt miễn phí). Biển trên màn hình đổi theo đường, đổi biển thì robot hiện "Tốc độ tối đa 50 km/h - tên đường". Đường nào TomTom chưa có dữ liệu thì robot dùng số "Tốc độ tối đa của bạn" trong trang cài đặt.
+- **Quá tốc độ:** robot lấy số nhỏ nhất trong: biển của đường, tốc độ ghi ở camera gần đó, và tốc độ tối đa bạn tự đặt (0 = chỉ theo biển). Chạy quá số đó hơn 3 km/h trong 3 giây thì robot nhắc, tối đa 30 giây một lần.
 - **Tắc phía trước:** 2 phút một lần robot hỏi TomTom đoạn đường cách khoảng 1 km phía trước; xe ở đó chạy dưới 45% tốc độ lúc vắng thì robot báo.
 - **Hỏi bằng giọng nói:** "đi đến trường mất bao lâu", "đường về nhà có tắc không", "đoạn này có tắc không".
 - **Báo đường buổi sáng:** đến giờ đặt sẵn, robot tính đường từ "Từ" đến "Đến"; chậm hơn bình thường từ số phút bạn đặt thì nói "nên đi sớm", không thì "thông thoáng".
