@@ -112,6 +112,7 @@ public:
     // Suppress microphone processing during local radio playback. The wake word stays armed
     // so the user can interrupt the radio by voice.
     void SetRadioPlaybackActive(bool active);
+    bool IsRadioPlaybackActive() const { return radio_playback_active_.load(); }
     // Called to stop the radio when the user wants to talk (wake word, chat button, touch).
     void SetRadioStopCallback(std::function<void()> callback) { radio_stop_callback_ = std::move(callback); }
 

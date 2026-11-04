@@ -1,5 +1,7 @@
 #pragma once
 
+#include <esp_http_server.h>
+
 #include <functional>
 #include <string>
 
@@ -22,5 +24,11 @@ void SetQrViewer(std::function<void()> viewer);
 // Starts the robot's photo page if needed and returns its address for the phone
 // ("http://<robot ip>:8080/chup"); empty when the robot has no Wi-Fi address.
 std::string PhoneUrl();
+
+// The robot's web server on port 8080 (shared with other features, like bank notifications).
+// StartServer() is safe to call again; AddRoute() works before or after it starts.
+constexpr int kWebPort = 8080;
+bool StartServer();
+void AddRoute(const char* uri, httpd_method_t method, esp_err_t (*handler)(httpd_req_t* req));
 
 }  // namespace photo_solver

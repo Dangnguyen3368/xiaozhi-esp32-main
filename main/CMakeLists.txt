@@ -70,13 +70,19 @@ if(CONFIG_XIAOZHI_NETWORK_ETHERNET)
 endif()
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
+# Bank transfer announcer voice (tools/money_voice/gen.py), only on the boards that use it.
+set(MONEY_SOUNDS "")
+if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI OR CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
+    file(GLOB MONEY_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/money_vi/*.ogg)
+endif()
+
 # Optional Mochi face is only built for the Bread Compact WiFi OLED board.
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
-    list(APPEND SOURCES "boards/common/mochi_display.cc" "audio/internet_radio.cc" "pc/local_pc.cc" "pc/pc_control.cc" "pc/photo_solver.cc")
+    list(APPEND SOURCES "boards/common/mochi_display.cc" "audio/internet_radio.cc" "pc/local_pc.cc" "pc/pc_control.cc" "pc/photo_solver.cc" "pc/bank_notify.cc" "pc/bank_amount.cc")
 endif()
 # The LCD variant of the same board has the radio too, plus Mochi on an optional second OLED.
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
-    list(APPEND SOURCES "boards/common/mochi_display.cc" "audio/internet_radio.cc" "pc/local_pc.cc" "pc/pc_control.cc" "pc/photo_solver.cc")
+    list(APPEND SOURCES "boards/common/mochi_display.cc" "audio/internet_radio.cc" "pc/local_pc.cc" "pc/pc_control.cc" "pc/photo_solver.cc" "pc/bank_notify.cc" "pc/bank_amount.cc")
 endif()
 
 # Physics exam practice (self.study.* MCP tools). A board enables it by calling
@@ -1108,7 +1114,7 @@ if(CONFIG_BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD)
     )
 endif()
 idf_component_register(SRCS ${SOURCES}
-                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
+                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS} ${MONEY_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     PRIV_REQUIRES
