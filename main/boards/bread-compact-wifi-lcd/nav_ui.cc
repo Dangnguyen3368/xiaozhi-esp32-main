@@ -32,7 +32,7 @@ void NavBadge::Update(const nav::Status& status) {
     std::string text;
     uint32_t color = kTealHex;
     if (status.module_seen && !status.has_fix) {
-        text = "GPS: đang dò (" + std::to_string(status.satellites) + ")";
+        text = "GPS... " + std::to_string(status.satellites) + " sat";
         color = kGreyHex;
     } else if (status.module_seen) {
         text = std::to_string(status.speed_kmh) + " km/h";
@@ -69,9 +69,8 @@ void NavBadge::Update(const nav::Status& status) {
         lv_obj_set_style_pad_hor(label_, 8, 0);
         lv_obj_set_style_pad_ver(label_, 2, 0);
         lv_obj_set_style_text_color(label_, lv_color_white(), 0);
-        if (const lv_font_t* font = study_ui::TextFont()) {
-            lv_obj_set_style_text_font(label_, font, 0);
-        }
+        // LVGL's built-in font (ASCII text only): the badge can appear right after boot, and the
+        // theme font is freed when the assets partition loads.
         lv_obj_remove_flag(label_, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_align(label_, LV_ALIGN_TOP_LEFT, 6, 30);
     }
