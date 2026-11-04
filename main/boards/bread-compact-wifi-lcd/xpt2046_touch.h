@@ -27,6 +27,11 @@ public:
     // Called (from the LVGL task) once when a finger stays still on the screen for about a
     // second. That press then no longer counts as a tap.
     void OnLongPress(std::function<void()> callback) { on_long_press_ = std::move(callback); }
+    // Called (from the LVGL task) when a finger slides quickly across the screen and lifts.
+    enum class Swipe { kLeft, kRight, kUp, kDown };
+    void OnSwipe(std::function<void(Swipe swipe, int start_x, int start_y)> callback) {
+        on_swipe_ = std::move(callback);
+    }
 
 private:
     static void ReadCallback(lv_indev_t* indev, lv_indev_data_t* data);
@@ -41,6 +46,7 @@ private:
     Calibration calibration_;
     std::function<void(int, int)> on_tap_;
     std::function<void()> on_long_press_;
+    std::function<void(Swipe, int, int)> on_swipe_;
 
     bool pressed_ = false;
     int last_x_ = 0;

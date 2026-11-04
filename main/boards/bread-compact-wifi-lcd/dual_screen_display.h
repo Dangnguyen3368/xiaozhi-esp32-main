@@ -6,6 +6,7 @@
 
 #include "display/lcd_display.h"
 #include "mochi_display.h"
+#include "home_screen.h"
 
 #include <array>
 
@@ -32,7 +33,26 @@ public:
         }
     }
 
+    // A chat line or notification must be readable, so the idle home screen steps aside.
+    void SetChatMessage(const char* role, const char* content) override {
+        if (content != nullptr && content[0] != '\0') {
+            HomeScreen::NoteActivity();
+        }
+        SpiLcdDisplay::SetChatMessage(role, content);
+    }
+
+    void ShowNotification(const char* notification, int duration_ms = 3000) override {
+        HomeScreen::NoteActivity();
+        SpiLcdDisplay::ShowNotification(notification, duration_ms);
+    }
+
+    void ShowNotification(const std::string& notification, int duration_ms = 3000) override {
+        HomeScreen::NoteActivity();
+        SpiLcdDisplay::ShowNotification(notification, duration_ms);
+    }
+
     void SetMusicVisualizer(bool active, const char* title) override {
+        HomeScreen::SetMusicActive(active);
         SpiLcdDisplay::SetMusicVisualizer(active, title);
         if (mochi_ != nullptr) {
             mochi_->SetMusicVisualizer(active, title);
