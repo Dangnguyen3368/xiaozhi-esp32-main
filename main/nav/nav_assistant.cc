@@ -1063,20 +1063,27 @@ bool FetchMapTile(int zoom, int x, int y, std::string& png) {
     }
     const std::string url = "https://api.tomtom.com/map/1/tile/basic/main/" + std::to_string(zoom) + "/" +
                             std::to_string(x) + "/" + std::to_string(y) + ".png?tileSize=256&key=" + UrlEncode(key);
-    auto http = Board::GetInstance().GetNetwork()->CreateHttp(5);
+    // One client kept open between tiles: a new TLS connection costs 3-4 s on the ESP32, so the
+    // connection is reused whenever the server allows it. Only the map task calls this.
+    static std::unique_ptr<Http> http;
+    if (!http) {
+        http = Board::GetInstance().GetNetwork()->CreateHttp(5);
+        http->SetKeepAlive(true);
+    }
     http->SetTimeout(10000);
     if (auto opened = http->Open("GET", url); !opened) {
         ESP_LOGW(kTag, "Map tile: cannot connect");
+        http.reset();
         return false;
     }
     auto status = http->GetStatusCode();
     png = http->ReadAll();
-    http->Close();
-    if (!status || *status != 200) {
+    if (!status || *status != 200 || png.size() <= 8) {
         ESP_LOGW(kTag, "Map tile HTTP %d", status ? *status : 0);
+        http.reset();
         return false;
     }
-    return png.size() > 8;
+    return true;
 }
 void SetSetupViewer(std::function<void()> viewer) { setup_viewer_ = std::move(viewer); }
 void SetCanSpeak(std::function<bool()> can_speak) { can_speak_ = std::move(can_speak); }

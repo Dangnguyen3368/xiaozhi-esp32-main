@@ -655,7 +655,6 @@ void DriveView::RenderMap() {
         status = status_;
     }
 
-    std::string message;
     double cx = 0, cy = 0;
     WorldPixel(lat, lon, zoom, cx, cy);
     const double left = cx - width / 2.0;
@@ -667,64 +666,128 @@ void DriveView::RenderMap() {
     const bool has_key = nav::HasKey();
     ++tile_clock_;
 
-    map_back_.assign(static_cast<size_t>(width) * height, Rgb565(0x30, 0x30, 0x30));
-    int missing = 0;
-    int tile_index = 0;
-    const int tile_total = (tx1 - tx0 + 1) * (ty1 - ty0 + 1);
+    // Tiles on screen, the one under the car first so the useful part shows up soonest.
+    struct Needed {
+        int x, y;
+        double distance;
+    };
+    std::vector<Needed> needed;
     for (int ty = ty0; ty <= ty1; ++ty) {
         for (int tx = tx0; tx <= tx1; ++tx) {
-            Tile& tile = tiles_[TileKey(zoom, tx, ty)];
-            tile.used = tile_clock_;
-            const int64_t now = esp_timer_get_time();
-            ++tile_index;
-            if (tile.pixels.empty() && has_key && (tile.failed_at == 0 || now - tile.failed_at > 15 * 1000 * 1000)) {
-                // Show progress: the first map needs several downloads.
-                if (lvgl_port_lock(kLockTimeoutMs)) {
-                    if (map_active_ && map_info_ != nullptr) {
-                        lv_label_set_text(map_info_, ("Đang tải bản đồ " + std::to_string(tile_index) + "/" +
-                                                      std::to_string(tile_total) + "...").c_str());
-                    }
-                    lvgl_port_unlock();
-                }
-                std::string png;
-                bool ok = nav::FetchMapTile(zoom, tx, ty, png);
-                const int64_t fetched = esp_timer_get_time();
-                bool decoded = false;
-                if (ok && lvgl_port_lock(kLockTimeoutMs)) {
-                    decoded = DecodePng(png, tile.pixels);
-                    lvgl_port_unlock();
-                }
-                ESP_LOGI(TAG, "Map tile %d/%d/%d: download %s (%u bytes, %d ms), decode %s (%d ms)", zoom, tx, ty,
-                         ok ? "ok" : "failed", static_cast<unsigned>(png.size()),
-                         static_cast<int>((fetched - now) / 1000), decoded ? "ok" : "failed",
-                         static_cast<int>((esp_timer_get_time() - fetched) / 1000));
-                ok = ok && decoded;
-                if (!ok) {
-                    tile.pixels.clear();
-                    tile.failed_at = now;
-                }
-                if (!map_active_) {
-                    return;
-                }
-            }
+            const double dx = (tx + 0.5) * kTile - cx;
+            const double dy = (ty + 0.5) * kTile - cy;
+            needed.push_back({tx, ty, dx * dx + dy * dy});
+            tiles_[TileKey(zoom, tx, ty)].used = tile_clock_;
+        }
+    }
+    std::sort(needed.begin(), needed.end(), [](const Needed& a, const Needed& b) { return a.distance < b.distance; });
+
+    const double meters_per_pixel = 156543.03 * std::cos(lat * kPi / 180.0) / std::pow(2.0, zoom);
+    const auto cameras = nav::CamerasNear(lat, lon, meters_per_pixel * std::hypot(width, height) / 2.0);
+    const bool gps = status.module_seen && status.has_fix;
+
+    // Draws the tiles we have, the cameras and the car, then shows it with `message`.
+    auto present = [&](const std::string& message) {
+        map_back_.assign(static_cast<size_t>(width) * height, Rgb565(0x30, 0x30, 0x30));
+        for (const auto& n : needed) {
+            const Tile& tile = tiles_[TileKey(zoom, n.x, n.y)];
             if (tile.pixels.empty()) {
-                ++missing;
                 continue;
             }
-            // Copy the part of the tile that falls on screen.
-            const int ox = static_cast<int>(std::floor(tx * static_cast<double>(kTile) - left));
-            const int oy = static_cast<int>(std::floor(ty * static_cast<double>(kTile) - top));
+            const int ox = static_cast<int>(std::floor(n.x * static_cast<double>(kTile) - left));
+            const int oy = static_cast<int>(std::floor(n.y * static_cast<double>(kTile) - top));
+            const int sx0 = std::max(0, ox);
+            const int sx1 = std::min(width, ox + kTile);
+            if (sx1 <= sx0) {
+                continue;
+            }
             for (int y = std::max(0, oy); y < std::min(height, oy + kTile); ++y) {
-                const int sx0 = std::max(0, ox);
-                const int sx1 = std::min(width, ox + kTile);
-                if (sx1 <= sx0) {
-                    continue;
-                }
                 memcpy(&map_back_[static_cast<size_t>(y) * width + sx0],
                        &tile.pixels[static_cast<size_t>(y - oy) * kTile + (sx0 - ox)], (sx1 - sx0) * 2);
             }
         }
+        for (const auto& camera : cameras) {
+            double px = 0, py = 0;
+            WorldPixel(camera.first, camera.second, zoom, px, py);
+            const int sx = static_cast<int>(px - left);
+            const int sy = static_cast<int>(py - top);
+            FillCircle(map_back_, width, height, sx, sy, 7, Rgb565(0xFF, 0xFF, 0xFF));
+            FillCircle(map_back_, width, height, sx, sy, 5, Rgb565(0xFB, 0x8C, 0x00));
+        }
+        const int mx = width / 2;
+        const int my = height / 2;
+        if (gps && status.speed_kmh >= 5) {
+            // Arrow along the course: tip 16 px ahead, two back corners, white outline.
+            const float a = status.course_deg * static_cast<float>(kPi) / 180.0f;
+            const float sa = std::sin(a), ca = std::cos(a);
+            const float local[3][2] = {{0, -16}, {-10, 10}, {10, 10}};
+            float px[3], py[3], ox[3], oy[3];
+            for (int i = 0; i < 3; ++i) {
+                px[i] = mx + local[i][0] * ca - local[i][1] * sa;
+                py[i] = my + local[i][0] * sa + local[i][1] * ca;
+                ox[i] = mx + (px[i] - mx) * 1.3f;
+                oy[i] = my + (py[i] - my) * 1.3f;
+            }
+            FillTriangle(map_back_, width, height, ox, oy, Rgb565(0xFF, 0xFF, 0xFF));
+            FillTriangle(map_back_, width, height, px, py, Rgb565(0x1E, 0x88, 0xE5));
+        } else {
+            FillCircle(map_back_, width, height, mx, my, 9, Rgb565(0xFF, 0xFF, 0xFF));
+            FillCircle(map_back_, width, height, mx, my, 6, gps ? Rgb565(0x1E, 0x88, 0xE5) : Rgb565(0xE5, 0x39, 0x35));
+        }
+        if (!lvgl_port_lock(kLockTimeoutMs)) {
+            return;
+        }
+        if (map_active_ && map_image_ != nullptr && map_front_.size() == map_back_.size()) {
+            memcpy(map_front_.data(), map_back_.data(), map_back_.size() * 2);
+            lv_image_cache_drop(&map_dsc_);
+            lv_obj_invalidate(map_image_);
+            map_message_ = message;
+            UpdateMapLabelsLocked(status);
+        }
+        lvgl_port_unlock();
+    };
+    // Stop as soon as the user zooms or leaves the map; the next round starts over.
+    auto aborted = [&]() { return !map_active_ || zoom_.load() != zoom; };
+
+    present("Đang tải bản đồ...");
+    int missing = 0;
+    int index = 0;
+    for (const auto& n : needed) {
+        ++index;
+        Tile& tile = tiles_[TileKey(zoom, n.x, n.y)];
+        const int64_t now = esp_timer_get_time();
+        if (!tile.pixels.empty()) {
+            continue;
+        }
+        if (!has_key || (tile.failed_at != 0 && now - tile.failed_at < 15 * 1000 * 1000)) {
+            ++missing;
+            continue;
+        }
+        std::string png;
+        bool ok = nav::FetchMapTile(zoom, n.x, n.y, png);
+        const int64_t fetched = esp_timer_get_time();
+        bool decoded = false;
+        if (ok && lvgl_port_lock(kLockTimeoutMs)) {
+            decoded = DecodePng(png, tile.pixels);
+            lvgl_port_unlock();
+        }
+        ESP_LOGI(TAG, "Map tile %d/%d/%d: download %s (%u bytes, %d ms), decode %s (%d ms)", zoom, n.x, n.y,
+                 ok ? "ok" : "failed", static_cast<unsigned>(png.size()), static_cast<int>((fetched - now) / 1000),
+                 decoded ? "ok" : "failed", static_cast<int>((esp_timer_get_time() - fetched) / 1000));
+        if (!(ok && decoded)) {
+            tile.pixels.clear();
+            tile.failed_at = now;
+            ++missing;
+        }
+        if (aborted()) {
+            map_dirty_ = true;
+            return;
+        }
+        if (index < static_cast<int>(needed.size())) {
+            present("Đang tải bản đồ " + std::to_string(index) + "/" + std::to_string(needed.size()) + "...");
+        }
     }
+
     // Forget the tiles used least recently.
     while (tiles_.size() > kMaxTiles) {
         auto oldest = tiles_.begin();
@@ -736,44 +799,7 @@ void DriveView::RenderMap() {
         tiles_.erase(oldest);
     }
 
-    // Cameras.
-    const double meters_per_pixel = 156543.03 * std::cos(lat * kPi / 180.0) / std::pow(2.0, zoom);
-    const double radius = meters_per_pixel * std::hypot(width, height) / 2.0;
-    for (const auto& camera : nav::CamerasNear(lat, lon, radius)) {
-        double px = 0, py = 0;
-        WorldPixel(camera.first, camera.second, zoom, px, py);
-        const int sx = static_cast<int>(px - left);
-        const int sy = static_cast<int>(py - top);
-        FillCircle(map_back_, width, height, sx, sy, 7, Rgb565(0xFF, 0xFF, 0xFF));
-        FillCircle(map_back_, width, height, sx, sy, 5, Rgb565(0xFB, 0x8C, 0x00));
-    }
-
-    // The car: an arrow along the course while driving, else a dot.
-    const int mx = width / 2;
-    const int my = height / 2;
-    const bool gps = status.module_seen && status.has_fix;
-    if (gps && status.speed_kmh >= 5) {
-        const float a = status.course_deg * static_cast<float>(kPi) / 180.0f;
-        const float sa = std::sin(a), ca = std::cos(a);
-        // Tip 16 px ahead, two back corners.
-        const float local[3][2] = {{0, -16}, {-10, 10}, {10, 10}};
-        float px[3], py[3];
-        for (int i = 0; i < 3; ++i) {
-            px[i] = mx + local[i][0] * ca - local[i][1] * sa;
-            py[i] = my + local[i][0] * sa + local[i][1] * ca;
-        }
-        float outline_x[3], outline_y[3];
-        for (int i = 0; i < 3; ++i) {
-            outline_x[i] = mx + (px[i] - mx) * 1.3f;
-            outline_y[i] = my + (py[i] - my) * 1.3f;
-        }
-        FillTriangle(map_back_, width, height, outline_x, outline_y, Rgb565(0xFF, 0xFF, 0xFF));
-        FillTriangle(map_back_, width, height, px, py, Rgb565(0x1E, 0x88, 0xE5));
-    } else {
-        FillCircle(map_back_, width, height, mx, my, 9, Rgb565(0xFF, 0xFF, 0xFF));
-        FillCircle(map_back_, width, height, mx, my, 6, gps ? Rgb565(0x1E, 0x88, 0xE5) : Rgb565(0xE5, 0x39, 0x35));
-    }
-
+    std::string message;
     if (!has_key) {
         message = "Cần key TomTom để tải bản đồ (nói: cài đặt dẫn đường)";
     } else if (missing > 0) {
@@ -781,20 +807,9 @@ void DriveView::RenderMap() {
     } else if (label == "GPS") {
         message = "Zoom " + std::to_string(zoom) + " · chạm để về màn tốc độ";
     } else {
-        message = "Chưa có GPS: đang xem quanh " + label;
+        message = "Chưa có GPS: quanh " + label + " · zoom " + std::to_string(zoom);
     }
-
-    if (!lvgl_port_lock(kLockTimeoutMs)) {
-        return;
-    }
-    if (map_active_ && map_image_ != nullptr && map_front_.size() == map_back_.size()) {
-        memcpy(map_front_.data(), map_back_.data(), map_back_.size() * 2);
-        lv_image_cache_drop(&map_dsc_);
-        lv_obj_invalidate(map_image_);
-        map_message_ = message;
-        UpdateMapLabelsLocked(status);
-    }
-    lvgl_port_unlock();
+    present(message);
 }
 
 void DriveButton::Create(std::function<void()> on_click) {
