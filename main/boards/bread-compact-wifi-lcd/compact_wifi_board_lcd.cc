@@ -10,6 +10,8 @@
 #include "study/physics_tutor.h"
 #include "xpt2046_touch.h"
 #include "figure_view.h"
+#include "nav_ui.h"
+#include "nav/nav_assistant.h"
 #include "study_ui.h"
 #include "wifi_setup_view.h"
 #include "study/study_timer.h"
@@ -89,12 +91,14 @@ private:
     std::unique_ptr<StudyMenu> study_menu_;
     ProgressView progress_view_;
     PomodoroBadge pomodoro_badge_;
+    NavBadge nav_badge_;
+    NavSetupView nav_setup_;
     MenuButton menu_button_;
     std::unique_ptr<WifiSetupView> wifi_setup_;
 
     bool AnyOverlayShown() const {
         return figure_view_.IsShown() || progress_view_.IsShown() || (study_menu_ && study_menu_->IsShown()) ||
-               (wifi_setup_ && wifi_setup_->IsShown());
+               (wifi_setup_ && wifi_setup_->IsShown()) || nav_setup_.IsShown();
     }
 
     // The server ignores text sent as a wake phrase in the middle of a chat, so the problem is
@@ -481,6 +485,20 @@ private:
                 study_menu_->ShowPhoto();
             }
         });
+        // Car mode: GPS module, camera/speed/traffic alerts, settings page on port 8081.
+        nav::SetStatusListener([this](const nav::Status& status) { nav_badge_.Update(status); });
+        nav::SetSetupViewer([this]() {
+            figure_view_.Hide();
+            if (study_menu_) {
+                study_menu_->Hide();
+            }
+            nav_setup_.Show();
+        });
+        nav::SetCanSpeak([this]() { return !(internet_radio_ && internet_radio_->IsRunning()); });
+        nav::RegisterTools();
+        // Started from the main loop: its task looks up the display through Board::GetInstance(),
+        // which must not run while the board is still being built.
+        Application::GetInstance().Schedule([]() { nav::Start(NAV_GPS_RX_PIN, NAV_GPS_TX_PIN); });
         CreateStudyMenu();
         // Created once the main loop runs: building the button looks up the theme font through
         // Board::GetInstance(), which must not be called while the board is still being built.
