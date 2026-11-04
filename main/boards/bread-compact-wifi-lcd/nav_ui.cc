@@ -954,14 +954,14 @@ void DriveButton::Create(std::function<void()> on_click) {
     button_ = button;
 }
 
-void DriveButton::SetOnTop(bool on_top) {
+void DriveButton::SetHidden(bool hidden) {
     if (button_ == nullptr) {
         return;
     }
-    if (on_top) {
-        lv_obj_move_foreground(button_);
+    if (hidden) {
+        lv_obj_add_flag(button_, LV_OBJ_FLAG_HIDDEN);
     } else {
-        lv_obj_move_to_index(button_, 0);
+        lv_obj_remove_flag(button_, LV_OBJ_FLAG_HIDDEN);
     }
 }
 

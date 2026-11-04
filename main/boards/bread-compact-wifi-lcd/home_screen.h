@@ -1,12 +1,15 @@
 #ifndef HOME_SCREEN_H
 #define HOME_SCREEN_H
 
+#include "app_launcher.h"
+
 #include <lvgl.h>
 
 #include <array>
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -22,7 +25,10 @@ class HomeScreen {
 public:
     struct Hooks {
         std::function<bool()> overlay_shown;           // a menu or study screen is open
-        std::function<void(bool on_top)> menu_button;  // keep the Menu button above the home screen
+        // Called with true while the home screen shows (its dock replaces the floating Menu
+        // and GPS buttons), false when it hides.
+        std::function<void(bool home_shown)> floating_buttons;
+        std::vector<AppEntry> dock;  // up to 4 apps along the bottom of the clock page
     };
 
     // Call with the LVGL lock held.
@@ -34,6 +40,10 @@ public:
     void Dismiss();
     // Swipe left/right: next or previous page.
     void ChangePage(int delta);
+    // Shows the home screen now on `page` (0 clock, 1 calendar), e.g. from the app grid.
+    void ShowNow(int page);
+    // True when (x, y) falls on the dock, whose icons handle their own taps.
+    bool DockContains(int x, int y) const;
 
     bool enabled() const { return enabled_; }
     bool night_mode() const { return night_mode_; }
@@ -95,6 +105,8 @@ private:
     std::array<lv_obj_t*, 3> forecast_labels_{};
     std::array<lv_obj_t*, 3> forecast_icons_{};
     std::vector<lv_obj_t*> text_labels_;  // recoloured at night
+    lv_obj_t* dock_ = nullptr;
+    std::vector<std::unique_ptr<std::function<void()>>> dock_handlers_;
 
     int shown_minute_ = -1;
     bool pomodoro_shown_ = false;

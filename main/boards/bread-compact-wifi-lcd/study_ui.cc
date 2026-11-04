@@ -121,7 +121,14 @@ void StudyMenu::Hide() {
     lvgl_port_unlock();
 }
 
-void StudyMenu::Show() { Build(Page::kMain); }
+void StudyMenu::Show() {
+    if (actions_.main_menu) {
+        Hide();
+        actions_.main_menu();
+        return;
+    }
+    Build(Page::kMain);
+}
 
 void StudyMenu::ShowFormulaTopics() { Build(Page::kFormulas); }
 
@@ -539,14 +546,14 @@ void MenuButton::Create(std::function<void()> on_click) {
     button_ = button;
 }
 
-void MenuButton::SetOnTop(bool on_top) {
+void MenuButton::SetHidden(bool hidden) {
     if (button_ == nullptr) {
         return;
     }
-    if (on_top) {
-        lv_obj_move_foreground(button_);
+    if (hidden) {
+        lv_obj_add_flag(button_, LV_OBJ_FLAG_HIDDEN);
     } else {
-        lv_obj_move_to_index(button_, 0);
+        lv_obj_remove_flag(button_, LV_OBJ_FLAG_HIDDEN);
     }
 }
 

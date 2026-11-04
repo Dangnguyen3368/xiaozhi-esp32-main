@@ -29,6 +29,8 @@ public:
         std::function<void()> local_music;  // play the computer's music, or skip when already playing
         std::function<void()> update_firmware;
         std::function<void()> wifi_setup;
+        // Opens the app grid; the sub-pages' "Quay lại" goes there when set.
+        std::function<void()> main_menu;
         // Computer control: run an action (type, key, open, pair) in the background.
         std::function<void(const std::string& action, const std::string& text)> pc_command;
         std::function<bool()> pc_paired;
@@ -91,9 +93,9 @@ public:
     void Create(std::function<void()> on_click);
     // True when a touch at (x, y) lands on the button (with a little slack).
     static bool Contains(int x, int y, int screen_width, int screen_height);
-    // On top of everything (over the home screen), or back beneath later overlays. Call with
-    // the LVGL lock held.
-    void SetOnTop(bool on_top);
+    // Hidden while the home screen shows (its dock replaces the button). Call with the LVGL
+    // lock held.
+    void SetHidden(bool hidden);
 
 private:
     lv_obj_t* button_ = nullptr;
