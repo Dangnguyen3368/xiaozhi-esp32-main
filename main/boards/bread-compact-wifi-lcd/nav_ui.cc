@@ -669,20 +669,36 @@ void DriveView::RenderMap() {
 
     map_back_.assign(static_cast<size_t>(width) * height, Rgb565(0x30, 0x30, 0x30));
     int missing = 0;
+    int tile_index = 0;
+    const int tile_total = (tx1 - tx0 + 1) * (ty1 - ty0 + 1);
     for (int ty = ty0; ty <= ty1; ++ty) {
         for (int tx = tx0; tx <= tx1; ++tx) {
             Tile& tile = tiles_[TileKey(zoom, tx, ty)];
             tile.used = tile_clock_;
             const int64_t now = esp_timer_get_time();
+            ++tile_index;
             if (tile.pixels.empty() && has_key && (tile.failed_at == 0 || now - tile.failed_at > 15 * 1000 * 1000)) {
+                // Show progress: the first map needs several downloads.
+                if (lvgl_port_lock(kLockTimeoutMs)) {
+                    if (map_active_ && map_info_ != nullptr) {
+                        lv_label_set_text(map_info_, ("Đang tải bản đồ " + std::to_string(tile_index) + "/" +
+                                                      std::to_string(tile_total) + "...").c_str());
+                    }
+                    lvgl_port_unlock();
+                }
                 std::string png;
                 bool ok = nav::FetchMapTile(zoom, tx, ty, png);
+                const int64_t fetched = esp_timer_get_time();
+                bool decoded = false;
                 if (ok && lvgl_port_lock(kLockTimeoutMs)) {
-                    ok = DecodePng(png, tile.pixels);
+                    decoded = DecodePng(png, tile.pixels);
                     lvgl_port_unlock();
-                } else {
-                    ok = false;
                 }
+                ESP_LOGI(TAG, "Map tile %d/%d/%d: download %s (%u bytes, %d ms), decode %s (%d ms)", zoom, tx, ty,
+                         ok ? "ok" : "failed", static_cast<unsigned>(png.size()),
+                         static_cast<int>((fetched - now) / 1000), decoded ? "ok" : "failed",
+                         static_cast<int>((esp_timer_get_time() - fetched) / 1000));
+                ok = ok && decoded;
                 if (!ok) {
                     tile.pixels.clear();
                     tile.failed_at = now;

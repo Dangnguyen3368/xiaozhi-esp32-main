@@ -1066,6 +1066,7 @@ bool FetchMapTile(int zoom, int x, int y, std::string& png) {
     auto http = Board::GetInstance().GetNetwork()->CreateHttp(5);
     http->SetTimeout(10000);
     if (auto opened = http->Open("GET", url); !opened) {
+        ESP_LOGW(kTag, "Map tile: cannot connect");
         return false;
     }
     auto status = http->GetStatusCode();
