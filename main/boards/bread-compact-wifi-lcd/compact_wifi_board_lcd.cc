@@ -1,6 +1,7 @@
 #include "wifi_board.h"
 #include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
+#include "dual_screen_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "audio/internet_radio.h"
@@ -29,6 +30,7 @@
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <driver/spi_common.h>
+#include <esp_lcd_panel_sh1106.h>
 
 #if defined(LCD_TYPE_ILI9341_SERIAL)
 #include "esp_lcd_ili9341.h"
@@ -80,7 +82,8 @@ private:
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    LcdDisplay* display_;
+    DualScreenLcdDisplay* display_ = nullptr;
+    i2c_master_bus_handle_t oled_i2c_bus_ = nullptr;
     std::unique_ptr<Xpt2046Touch> touch_;
     std::unique_ptr<InternetRadio> internet_radio_;
     FigureView figure_view_;
@@ -223,8 +226,78 @@ private:
 #ifdef  LCD_TYPE_GC9A01_SERIAL
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif
-        display_ = new SpiLcdDisplay(panel_io, panel,
+        display_ = new DualScreenLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+    }
+
+    // Optional second screen: 1.3" SH1106 OLED with the Mochi face. Runs after the TFT, which
+    // already started LVGL; the TFT stays the default LVGL display.
+    void InitializeMochiOled() {
+        i2c_master_bus_config_t bus_config = {};
+        bus_config.i2c_port = I2C_NUM_0;
+        bus_config.sda_io_num = MOCHI_OLED_SDA_PIN;
+        bus_config.scl_io_num = MOCHI_OLED_SCL_PIN;
+        bus_config.clk_source = I2C_CLK_SRC_DEFAULT;
+        bus_config.glitch_ignore_cnt = 7;
+        bus_config.flags.enable_internal_pullup = 1;
+        if (i2c_new_master_bus(&bus_config, &oled_i2c_bus_) != ESP_OK) {
+            ESP_LOGW(TAG, "Mochi OLED: I2C bus init failed");
+            oled_i2c_bus_ = nullptr;
+            return;
+        }
+        if (i2c_master_probe(oled_i2c_bus_, MOCHI_OLED_I2C_ADDR, 100) != ESP_OK) {
+            ESP_LOGI(TAG, "Mochi OLED: no screen at 0x%02X, running with the TFT only",
+                     MOCHI_OLED_I2C_ADDR);
+            i2c_del_master_bus(oled_i2c_bus_);
+            oled_i2c_bus_ = nullptr;
+            return;
+        }
+
+        esp_lcd_panel_io_handle_t panel_io = nullptr;
+        esp_lcd_panel_handle_t panel = nullptr;
+        esp_lcd_panel_io_i2c_config_t io_config = {};
+        io_config.dev_addr = MOCHI_OLED_I2C_ADDR;
+        io_config.scl_speed_hz = 400 * 1000;
+        io_config.control_phase_bytes = 1;
+        io_config.dc_bit_offset = 6;
+        io_config.lcd_cmd_bits = 8;
+        io_config.lcd_param_bits = 8;
+        if (esp_lcd_new_panel_io_i2c(oled_i2c_bus_, &io_config, &panel_io) != ESP_OK) {
+            ESP_LOGW(TAG, "Mochi OLED: panel IO init failed");
+            return;
+        }
+
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.reset_gpio_num = GPIO_NUM_NC;
+        panel_config.bits_per_pixel = 1;
+        esp_lcd_panel_ssd1306_config_t ssd1306_config = {};
+        ssd1306_config.height = static_cast<uint8_t>(MOCHI_OLED_HEIGHT);
+        panel_config.vendor_config = &ssd1306_config;
+        if (esp_lcd_new_panel_sh1106(panel_io, &panel_config, &panel) != ESP_OK) {
+            ESP_LOGW(TAG, "Mochi OLED: SH1106 driver init failed");
+            esp_lcd_panel_io_del(panel_io);
+            return;
+        }
+        esp_lcd_panel_reset(panel);
+        if (esp_lcd_panel_init(panel) != ESP_OK) {
+            ESP_LOGW(TAG, "Mochi OLED: panel init failed");
+            esp_lcd_panel_del(panel);
+            esp_lcd_panel_io_del(panel_io);
+            return;
+        }
+        esp_lcd_panel_invert_color(panel, false);
+        esp_lcd_panel_disp_on_off(panel, true);
+
+        auto mochi = new MochiDisplay(panel_io, panel, MOCHI_OLED_WIDTH, MOCHI_OLED_HEIGHT,
+                                      MOCHI_OLED_MIRROR_X, MOCHI_OLED_MIRROR_Y, true);
+        {
+            // Adding the OLED must not take over as LVGL's default display: the TFT UI and the
+            // study screens build on lv_screen_active() / lv_layer_top().
+            DisplayLockGuard lock(display_);
+            lv_display_set_default(display_->main_lv_display());
+        }
+        display_->AttachMochi(mochi);
+        ESP_LOGI(TAG, "Mochi OLED attached (%dx%d)", MOCHI_OLED_WIDTH, MOCHI_OLED_HEIGHT);
     }
 
     void InitializeTouch() {
@@ -445,6 +518,7 @@ public:
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
         InitializeSpi();
         InitializeLcdDisplay();
+        InitializeMochiOled();
         InitializeTouch();
         InitializeButtons();
         InitializeTools();

@@ -80,9 +80,9 @@ endif()
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
     list(APPEND SOURCES "boards/common/mochi_display.cc" "audio/internet_radio.cc" "pc/local_pc.cc" "pc/pc_control.cc" "pc/photo_solver.cc" "pc/bank_notify.cc" "pc/bank_amount.cc")
 endif()
-# The LCD variant of the same board has the radio too (no Mochi face, it is OLED-only).
+# The LCD variant of the same board has the radio too, plus Mochi on an optional second OLED.
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
-    list(APPEND SOURCES "audio/internet_radio.cc" "pc/local_pc.cc" "pc/pc_control.cc" "pc/photo_solver.cc" "pc/bank_notify.cc" "pc/bank_amount.cc")
+    list(APPEND SOURCES "boards/common/mochi_display.cc" "audio/internet_radio.cc" "pc/local_pc.cc" "pc/pc_control.cc" "pc/photo_solver.cc" "pc/bank_notify.cc" "pc/bank_amount.cc")
 endif()
 
 # Physics exam practice (self.study.* MCP tools). A board enables it by calling

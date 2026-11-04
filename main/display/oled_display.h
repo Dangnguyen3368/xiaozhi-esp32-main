@@ -24,6 +24,7 @@ private:
     lv_obj_t* music_bars_box_ = nullptr;
     lv_obj_t* music_bars_[8] = {nullptr};
     bool music_visualizer_active_ = false;
+    bool secondary_ = false;
 
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
@@ -32,8 +33,10 @@ private:
     void SetupUI_128x32();
 
 public:
+    // secondary = true: this OLED is an extra screen next to another LVGL display that already
+    // started LVGL (e.g. the TFT). It then skips lvgl_port_init and does not register its theme.
     OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width,
-                int height, bool mirror_x, bool mirror_y);
+                int height, bool mirror_x, bool mirror_y, bool secondary = false);
     ~OledDisplay();
 
     virtual void SetupUI() override;
