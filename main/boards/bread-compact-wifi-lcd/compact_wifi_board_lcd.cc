@@ -396,11 +396,12 @@ private:
             if (home_.DockContains(x, y)) {
                 return;
             }
-            // At night the first tap only lights the dimmed clock up.
-            if (home_.HandleTap()) {
+            // The home screen is the main screen: a tap there only lights the dimmed night clock
+            // up. Chat starts from the dock's chat icon (or the BOOT button / wake word).
+            if (home_.IsShown()) {
+                home_.HandleTap();
                 return;
             }
-            home_.Dismiss();
             Application::GetInstance().Schedule([this]() { ToggleChatOrStopRadio(); });
         });
         // Swipe down: control center (on the chat screen only from the top edge, so the chat

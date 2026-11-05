@@ -28,7 +28,9 @@ std::atomic<bool> HomeScreen::music_active_{false};
 
 namespace {
 // The home screen appears after this long without chat, notifications or other screens.
-constexpr int64_t kIdleShowUs = 15LL * 1000 * 1000;
+// After a chat, notification or music the chat screen stays this long, then the home screen
+// (the main screen) comes back.
+constexpr int64_t kIdleShowUs = 4LL * 1000 * 1000;
 constexpr int64_t kNightWakeUs = 10LL * 1000 * 1000;
 constexpr uint8_t kNightBrightness = 5;
 constexpr int kNightStartHour = 22;
@@ -182,7 +184,8 @@ void HomeScreen::Tick() {
     }
 
     const bool overlay = hooks_.overlay_shown && hooks_.overlay_shown();
-    if (state != kDeviceStateIdle || overlay) {
+    // Menus and other screens only cover the home screen; once closed it is back at once.
+    if (state != kDeviceStateIdle) {
         NoteActivity();
     }
     const int64_t now = esp_timer_get_time();

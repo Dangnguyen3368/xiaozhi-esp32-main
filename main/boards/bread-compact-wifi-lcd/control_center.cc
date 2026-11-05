@@ -160,7 +160,7 @@ void ControlCenter::Show() {
             lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
         }
     };
-    add(home_on ? "Màn chờ: Bật" : "Màn chờ: Tắt", home_on ? kGreen : kGrey, [this, home_on]() {
+    add(home_on ? "Màn hình chính: Bật" : "Màn hình chính: Tắt", home_on ? kGreen : kGrey, [this, home_on]() {
         home_.SetEnabled(!home_on);
         Show();
     });

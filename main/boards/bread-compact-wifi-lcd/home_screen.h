@@ -13,11 +13,12 @@
 #include <string>
 #include <vector>
 
-// Idle home screen for the 320x240 TFT: a big LED-style clock with the date, lunar date and
-// weather (page 0), and the month calendar with lunar days (page 1). Shown once the robot has
-// been idle for a while, hidden as soon as anything happens (chat, notification, music,
-// another screen). Between 22:00 and 6:00 it dims the backlight and turns amber; a tap lights
-// it up again for 10 seconds.
+// Main screen of the 240x320 TFT: a big clock with the date, lunar date and weather (page 0),
+// and the month calendar with lunar days (page 1). It shows whenever the robot is idle and no
+// menu is open; the chat screen only takes over during a chat (started from the dock's chat
+// icon, the BOOT button or the wake word), music or a notification, and a few seconds later
+// the home screen is back. Between 22:00 and 6:00 it dims the backlight and turns amber; a tap
+// lights it up again for 10 seconds.
 //
 // Everything runs in the LVGL task: Start() creates a 1-second LVGL timer, and the touch
 // callbacks that call HandleTap()/Dismiss()/ShowPage() also run there.
