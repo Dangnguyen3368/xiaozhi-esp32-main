@@ -13,6 +13,11 @@ on:
 permissions:
   contents: read
 
+# A new push to the same pull request cancels the older, still-queued run.
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   prepare:
     name: Determine variants to build
@@ -62,6 +67,14 @@ jobs:
           echo -e "Changed files:\n$CHANGED"
 
           SELECTED=$(printf '%s\n' "$CHANGED" | python scripts/build.py --select-changed)
+          # This fork only runs on the robot's own boards. Shared code under main/ would otherwise
+          # queue ~180 board builds per pull request, which takes hours on the free runners and
+          # fails on unrelated boards when their asset downloads time out.
+          SELECTED=$(printf '%s' "$SELECTED" | python -c '
+          import json, sys
+          own = {"bread-compact-wifi", "bread-compact-wifi-lcd"}
+          print(json.dumps([v for v in json.load(sys.stdin) if v["board"] in own]))
+          ')
           echo "variants=$SELECTED" >> $GITHUB_OUTPUT
 
   build:
