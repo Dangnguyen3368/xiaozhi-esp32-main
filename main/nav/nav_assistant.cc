@@ -312,11 +312,13 @@ void Speak(nav_voice::Id id) {
     }
     auto& app = Application::GetInstance();
     // While the assistant listens or talks the alert would mix with the conversation; the
-    // notification on screen is enough then. Without internet (Wi-Fi still connecting, or the
-    // robot gave up and opened its Wi-Fi setup hotspot) nobody is talking, so alerts still speak:
-    // the clips are built into the firmware.
+    // notification on screen is enough then. Without internet (Wi-Fi still connecting, the robot
+    // gave up and opened its Wi-Fi setup hotspot, or a hotspot without data keeps it retrying the
+    // server in the activating state) nobody is talking, so alerts still speak: the clips are
+    // built into the firmware.
     const DeviceState state = app.GetDeviceState();
-    if (state != kDeviceStateIdle && state != kDeviceStateWifiConfiguring && state != kDeviceStateStarting) {
+    if (state != kDeviceStateIdle && state != kDeviceStateWifiConfiguring && state != kDeviceStateStarting &&
+        state != kDeviceStateActivating) {
         return;
     }
     app.PlaySound(nav_voice::Clip(id));

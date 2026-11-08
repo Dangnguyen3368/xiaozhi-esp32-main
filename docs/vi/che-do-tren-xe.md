@@ -27,7 +27,7 @@ Muốn dùng chân khác thì sửa `NAV_GPS_RX_PIN` / `NAV_GPS_TX_PIN` trong `m
 
 ### Không có mạng
 
-GPS, tốc độ, cảnh báo camera (danh sách có sẵn + camera tự đánh dấu) và cảnh báo quá tốc độ theo số bạn cài vẫn chạy và robot vẫn **nói** cảnh báo, kể cả khi robot không vào được Wi-Fi và đang ở chế độ cài Wi-Fi. Biển tốc độ theo đường, kẹt xe, bản đồ và nói chuyện với robot cần internet.
+GPS, tốc độ, cảnh báo camera (danh sách có sẵn + camera tự đánh dấu) và cảnh báo quá tốc độ theo số bạn cài vẫn chạy và robot vẫn **nói** cảnh báo, kể cả khi robot không vào được Wi-Fi (đang ở chế độ cài Wi-Fi) hoặc vào được hotspot nhưng điện thoại hết 4G. Biển tốc độ theo đường, kẹt xe, bản đồ và nói chuyện với robot cần internet.
 
 Trên xe, robot vào mạng bằng điểm phát Wi-Fi của điện thoại: thêm hotspot đó vào danh sách Wi-Fi của robot như mạng nhà.
 
