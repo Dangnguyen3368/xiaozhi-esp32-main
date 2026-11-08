@@ -25,6 +25,10 @@ Muốn dùng chân khác thì sửa `NAV_GPS_RX_PIN` / `NAV_GPS_TX_PIN` trong `m
   - `... bytes, ... bad lines, no valid NMEA` là có dữ liệu nhưng sai tốc độ hoặc dây chập chờn.
 - Đèn trên module chỉ nháy khi **đã bắt được vệ tinh**; chưa bắt được thì đèn tắt, đó là bình thường.
 
+### Không có mạng
+
+GPS, tốc độ, cảnh báo camera (danh sách có sẵn + camera tự đánh dấu) và cảnh báo quá tốc độ theo số bạn cài vẫn chạy và robot vẫn **nói** cảnh báo, kể cả khi robot không vào được Wi-Fi và đang ở chế độ cài Wi-Fi. Biển tốc độ theo đường, kẹt xe, bản đồ và nói chuyện với robot cần internet.
+
 Trên xe, robot vào mạng bằng điểm phát Wi-Fi của điện thoại: thêm hotspot đó vào danh sách Wi-Fi của robot như mạng nhà.
 
 ## Robot làm gì
