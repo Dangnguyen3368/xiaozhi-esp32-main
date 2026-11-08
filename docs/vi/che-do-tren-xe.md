@@ -15,6 +15,16 @@ Muốn dùng chân khác thì sửa `NAV_GPS_RX_PIN` / `NAV_GPS_TX_PIN` trong `m
 
 Ăng-ten phải nhìn thấy trời (đặt sát kính lái). Lần đầu mất 1–5 phút mới bắt được vệ tinh; trong nhà thường không bắt được. Bắt được thì robot nói "Đã bắt được tín hiệu GPS" và góc trái màn hình hiện tốc độ.
 
+### GPS không kết nối?
+
+- Chỉ bản build **Bread Compact Wi-Fi + LCD** mới có chế độ trên xe.
+- Robot tự thử cả hai dây (GPIO 5 và GPIO 4) và các tốc độ baud 9600, 38400, 4800, 115200, 57600, 19200, nên cắm ngược TX/RX vẫn chạy.
+- Mở Serial Monitor, tìm dòng `GpsReader`:
+  - `GPS module found: module TX on GPIO 5, 9600 baud` là đã kết nối.
+  - `No GPS data on GPIO 5 or 4` là không có dữ liệu: kiểm tra VCC, GND (chung GND với robot) và dây TX.
+  - `... bytes, ... bad lines, no valid NMEA` là có dữ liệu nhưng sai tốc độ hoặc dây chập chờn.
+- Đèn trên module chỉ nháy khi **đã bắt được vệ tinh**; chưa bắt được thì đèn tắt, đó là bình thường.
+
 Trên xe, robot vào mạng bằng điểm phát Wi-Fi của điện thoại: thêm hotspot đó vào danh sách Wi-Fi của robot như mạng nhà.
 
 ## Robot làm gì

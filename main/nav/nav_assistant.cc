@@ -887,7 +887,12 @@ std::string ConfigPage(const std::string& message) {
     }
     std::string gps;
     if (!status.module_seen) {
-        gps = status.has_fix ? "Không thấy module GPS, đang dùng vị trí điện thoại gửi." : "Chưa thấy module GPS (kiểm tra dây TX vào GPIO 5).";
+        if (GpsReader::GetInstance().BytesSeen()) {
+            gps = "Có tín hiệu từ dây GPS nhưng chưa đọc được, robot đang thử tốc độ baud khác...";
+        } else {
+            gps = status.has_fix ? "Không thấy module GPS, đang dùng vị trí điện thoại gửi."
+                                 : "Chưa thấy module GPS: kiểm tra VCC, GND và dây TX của module vào GPIO 5 (robot tự thử cả GPIO 4).";
+        }
     } else if (!status.has_fix) {
         gps = "Module GPS có điện, đang dò vệ tinh (" + std::to_string(status.satellites) + " vệ tinh).";
     } else {
