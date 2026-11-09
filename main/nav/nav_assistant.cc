@@ -312,8 +312,13 @@ void Speak(nav_voice::Id id) {
     }
     auto& app = Application::GetInstance();
     // While the assistant listens or talks the alert would mix with the conversation; the
-    // notification on screen is enough then.
-    if (app.GetDeviceState() != kDeviceStateIdle) {
+    // notification on screen is enough then. Without internet (Wi-Fi still connecting, the robot
+    // gave up and opened its Wi-Fi setup hotspot, or a hotspot without data keeps it retrying the
+    // server in the activating state) nobody is talking, so alerts still speak: the clips are
+    // built into the firmware.
+    const DeviceState state = app.GetDeviceState();
+    if (state != kDeviceStateIdle && state != kDeviceStateWifiConfiguring && state != kDeviceStateStarting &&
+        state != kDeviceStateActivating) {
         return;
     }
     app.PlaySound(nav_voice::Clip(id));
@@ -887,7 +892,12 @@ std::string ConfigPage(const std::string& message) {
     }
     std::string gps;
     if (!status.module_seen) {
-        gps = status.has_fix ? "Không thấy module GPS, đang dùng vị trí điện thoại gửi." : "Chưa thấy module GPS (kiểm tra dây TX vào GPIO 5).";
+        if (GpsReader::GetInstance().BytesSeen()) {
+            gps = "Có tín hiệu từ dây GPS nhưng chưa đọc được, robot đang thử tốc độ baud khác...";
+        } else {
+            gps = status.has_fix ? "Không thấy module GPS, đang dùng vị trí điện thoại gửi."
+                                 : "Chưa thấy module GPS: kiểm tra VCC, GND và dây TX của module vào GPIO 5 (robot tự thử cả GPIO 4).";
+        }
     } else if (!status.has_fix) {
         gps = "Module GPS có điện, đang dò vệ tinh (" + std::to_string(status.satellites) + " vệ tinh).";
     } else {

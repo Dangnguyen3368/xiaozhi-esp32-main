@@ -31,6 +31,8 @@ public:
     Fix GetFix() const;
     // True when NMEA sentences arrived in the last 5 s (module wired and powered).
     bool ModuleSeen() const;
+    // True when any bytes arrived in the last 5 s, even unreadable ones (wrong baud rate).
+    bool BytesSeen() const;
     // Fix younger than 5 s.
     bool HasFreshFix() const;
 
@@ -42,11 +44,17 @@ private:
     GpsReader() = default;
     static void TaskEntry(void* arg);
     void Run();
-    void HandleSentence(const std::string& line);
+    // Returns true for a sentence with a good checksum.
+    bool HandleSentence(const std::string& line);
+    void Listen(gpio_num_t rx, int baud);
 
     mutable std::mutex mutex_;
     Fix fix_;
     Fix phone_fix_;
     int64_t last_sentence_us_ = 0;
+    int64_t last_byte_us_ = 0;
+    gpio_num_t pin_a_ = GPIO_NUM_NC;
+    gpio_num_t pin_b_ = GPIO_NUM_NC;
+    int baud_ = 9600;
     TaskHandle_t task_ = nullptr;
 };
