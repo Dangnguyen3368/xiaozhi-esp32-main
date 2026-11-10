@@ -6,6 +6,7 @@
 #include "board.h"
 #include "cjson_utils.h"
 #include "display.h"
+#include "duo/duo_teach.h"
 #include "mcp_server.h"
 #include "mqtt_protocol.h"
 #include "reminder_manager.h"
@@ -111,6 +112,7 @@ void Application::Initialize() {
     auto& mcp_server = McpServer::GetInstance();
     mcp_server.AddCommonTools();
     mcp_server.AddUserOnlyTools();
+    DuoTeach::GetInstance().Start();
 
     // Set network event callback for UI updates and network state handling
     board.SetNetworkEventCallback([this](NetworkEvent event, const std::string& data) {
@@ -652,12 +654,33 @@ void Application::InitializeProtocol() {
                         return;
                     }
                     aborted_ = false;
-                    SetDeviceState(kDeviceStateSpeaking);
+                    const bool was_speaking = GetDeviceState() == kDeviceStateSpeaking;
+                    if (SetDeviceState(kDeviceStateSpeaking) && !was_speaking) {
+                        DuoTeach::GetInstance().OnSpeakStart(duo_reply_to_peer_);
+                        duo_reply_to_peer_ = false;
+                    }
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
                     ignore_turn_ = false;
                     if (GetDeviceState() == kDeviceStateSpeaking) {
+                        if (duo_yield_) {
+                            // Cut off because the student woke the partner robot.
+                            duo_yield_ = false;
+                            SetDeviceState(kDeviceStateIdle);
+                            return;
+                        }
+                        const auto after = DuoTeach::GetInstance().OnSpeakStop();
+                        if (after == DuoTeach::AfterSpeech::kHandOff) {
+                            // The partner robot answers next; keep the microphone closed.
+                            SetDeviceState(kDeviceStateIdle);
+                            return;
+                        }
+                        if (after == DuoTeach::AfterSpeech::kListenStudent) {
+                            play_popup_on_listening_ = true;
+                            SetListeningMode(GetDefaultListeningMode());
+                            return;
+                        }
                         if (listening_mode_ == kListeningModeManualStop) {
                             SetDeviceState(kDeviceStateIdle);
                         } else {
@@ -679,6 +702,8 @@ void Application::InitializeProtocol() {
                         Schedule([this]() {
                             music_session_ = true;
                             UpdateMusicVisualizer();
+                            // A song is not a lesson turn: the partner robot stops recording.
+                            DuoTeach::GetInstance().CancelSpeech();
                         });
                     }
                     Schedule([display, message = std::string(text->valuestring),
@@ -889,6 +914,9 @@ void Application::HandleToggleChatEvent() {
         return;
     }
 
+    if (state == kDeviceStateIdle || state == kDeviceStateSpeaking) {
+        DuoClaimFloor();
+    }
     if (state == kDeviceStateIdle) {
         ListeningMode mode = GetDefaultListeningMode();
         if (!protocol_->IsAudioChannelOpened()) {
@@ -901,6 +929,8 @@ void Application::HandleToggleChatEvent() {
     } else if (state == kDeviceStateSpeaking) {
         AbortSpeaking(kAbortReasonNone);
     } else if (state == kDeviceStateListening) {
+        duo_peer_listen_ = false;
+        DuoTeach::GetInstance().OnPeerListenEnd();
         protocol_->CloseAudioChannel();
     }
 }
@@ -953,6 +983,9 @@ void Application::HandleStartListeningEvent() {
         return;
     }
 
+    if (state == kDeviceStateIdle || state == kDeviceStateSpeaking) {
+        DuoClaimFloor();
+    }
     if (state == kDeviceStateIdle) {
         if (!protocol_->IsAudioChannelOpened()) {
             SetDeviceState(kDeviceStateConnecting);
@@ -1004,12 +1037,14 @@ void Application::HandleWakeWordDetectedEvent() {
         StopNotification();
         BeginWakeWordInvoke(wake_word);
     } else if (state == kDeviceStateSpeaking || state == kDeviceStateListening) {
+        DuoClaimFloor();
         AbortSpeaking(kAbortReasonWakeWordDetected);
         // Clear send queue to avoid sending residues to server
         while (audio_service_.PopPacketFromSendQueue())
             ;
 
         if (state == kDeviceStateListening) {
+            listening_mode_ = GetDefaultListeningMode();
             protocol_->SendStartListening(GetDefaultListeningMode());
             audio_service_.ResetDecoder();
             audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
@@ -1029,6 +1064,7 @@ void Application::HandleWakeWordDetectedEvent() {
 void Application::BeginWakeWordInvoke(const std::string& wake_word) {
     // Must run in the main task with the device in idle state
     audio_service_.EncodeWakeWord();
+    DuoClaimFloor();
 
     // Always pass through the connecting state, even if the audio channel is
     // already opened. ContinueWakeWordInvoke() rejects any other state, so
@@ -1132,6 +1168,13 @@ void Application::HandleStateChangedEvent() {
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("listening");
+            duo_reply_to_peer_ = false;  // A reply that never came; the next one is a new turn
+            if (duo_done_pending_ != 0) {
+                // The partner robot finished while this one was still connecting.
+                const bool reply = duo_done_pending_ == 1;
+                duo_done_pending_ = 0;
+                Schedule([this, reply]() { DuoPeerDone(reply); });
+            }
 
             // Make sure the audio processor is running
             if (play_popup_on_listening_ || !audio_service_.IsAudioProcessorRunning()) {
@@ -1401,6 +1444,104 @@ void Application::WakeWordInvoke(const std::string& wake_word) {
                 protocol_->CloseAudioChannel();
             }
         });
+    }
+}
+
+void Application::DuoClaimFloor() {
+    duo_peer_listen_ = false;
+    duo_reply_to_peer_ = false;
+    duo_done_pending_ = 0;
+    DuoTeach::GetInstance().OnClaimFloor();
+}
+
+void Application::DuoListenToPeer() {
+    if (!DuoTeach::GetInstance().enabled() || !protocol_ || radio_playback_active_) {
+        return;
+    }
+    auto state = GetDeviceState();
+    if (state == kDeviceStateNotifying) {
+        StopNotification();
+        state = kDeviceStateIdle;
+    }
+    if (state == kDeviceStateIdle) {
+        ESP_LOGI(TAG, "Duo: listening to the partner robot");
+        duo_peer_listen_ = true;
+        duo_done_pending_ = 0;
+        DuoTeach::GetInstance().OnPeerListenStart();
+        if (!protocol_->IsAudioChannelOpened()) {
+            SetDeviceState(kDeviceStateConnecting);
+            Schedule([this]() { ContinueOpenAudioChannel(kListeningModeManualStop); });
+            return;
+        }
+        SetListeningMode(kListeningModeManualStop);
+    } else if (state == kDeviceStateListening) {
+        if (duo_peer_listen_) {
+            return;
+        }
+        // Was waiting for the student: keep the microphone open, but let the partner finish
+        // instead of letting the server cut in at the first pause.
+        ESP_LOGI(TAG, "Duo: partner speaks, switch to manual listening");
+        duo_peer_listen_ = true;
+        DuoTeach::GetInstance().OnPeerListenStart();
+        listening_mode_ = kListeningModeManualStop;
+        if (!pending_listening_start_) {
+            protocol_->SendStartListening(kListeningModeManualStop);
+        }
+    } else if (state == kDeviceStateSpeaking) {
+        // Both robots started at once and the partner keeps the turn.
+        ESP_LOGI(TAG, "Duo: partner keeps the turn, stop speaking");
+        AbortSpeaking(kAbortReasonNone);
+        DuoTeach::GetInstance().CancelSpeech();
+        duo_peer_listen_ = true;
+        DuoTeach::GetInstance().OnPeerListenStart();
+        SetListeningMode(kListeningModeManualStop);
+    }
+}
+
+void Application::DuoPeerDone(bool reply) {
+    if (!duo_peer_listen_) {
+        return;
+    }
+    const auto state = GetDeviceState();
+    if (state == kDeviceStateConnecting) {
+        duo_done_pending_ = reply ? 1 : 2;
+        return;
+    }
+    duo_peer_listen_ = false;
+    DuoTeach::GetInstance().OnPeerListenEnd();
+    if (state != kDeviceStateListening || !protocol_) {
+        return;
+    }
+    if (reply) {
+        ESP_LOGI(TAG, "Duo: partner finished, answer it");
+        duo_reply_to_peer_ = true;
+        protocol_->SendStopListening();
+        SetDeviceState(kDeviceStateIdle);
+    } else {
+        ESP_LOGI(TAG, "Duo: partner handed over to the student, go quiet");
+        protocol_->CloseAudioChannel();
+    }
+}
+
+void Application::DuoYield() {
+    if (!DuoTeach::GetInstance().enabled() || !protocol_) {
+        return;
+    }
+    duo_reply_to_peer_ = false;
+    duo_done_pending_ = 0;
+    const auto state = GetDeviceState();
+    if (state == kDeviceStateListening) {
+        ESP_LOGI(TAG, "Duo: the student talks to the partner, go quiet");
+        duo_peer_listen_ = false;
+        DuoTeach::GetInstance().OnPeerListenEnd();
+        protocol_->CloseAudioChannel();
+    } else if (state == kDeviceStateSpeaking) {
+        ESP_LOGI(TAG, "Duo: the student talks to the partner, stop speaking");
+        duo_yield_ = true;
+        DuoTeach::GetInstance().CancelSpeech();
+        AbortSpeaking(kAbortReasonNone);
+    } else if (state == kDeviceStateConnecting && duo_peer_listen_) {
+        duo_done_pending_ = 2;
     }
 }
 
