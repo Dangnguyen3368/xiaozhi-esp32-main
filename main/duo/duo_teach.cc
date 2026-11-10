@@ -97,8 +97,9 @@ void DuoTeach::Start() {
         "to what its partner said; after `turns` replies between them, the robot asks the student. "
         "Each robot must be switched on separately. Actions: `on`, `off`, `status`, `partner_said`. "
         "`turns` (2-10) changes the number of replies in a row between the robots; 0 keeps it. "
-        "IMPORTANT: while two-robot mode is on, whenever you are woken (the wake word, e.g. "
-        "\"" DUO_CUE "\", or a short greeting), FIRST call this tool with action `partner_said`. "
+        "IMPORTANT: while two-robot mode is on, EVERY time the user message is only the wake word (e.g. "
+        "\"" DUO_CUE "\") or a short greeting, call this tool with action `partner_said` BEFORE saying "
+        "anything (no greeting, no preamble). "
         "If it returns your partner robot's words, continue the lesson from them (answer, add to, "
         "correct or question what it said) and do not greet. If it says there is no new turn, a "
         "student woke you: answer the student normally.",
@@ -172,7 +173,6 @@ void DuoTeach::OnSpeakStart(bool reply_to_peer) {
     speaking_ = true;
     end_pending_ = false;
     reply_stage_ = 0;
-    partner_turn_pending_ = false;
     spoken_text_.clear();
     my_turn_ = reply_to_peer ? peer_turn_ + 1 : 1;
     Broadcast("start", my_turn_);
@@ -187,6 +187,9 @@ DuoTeach::AfterSpeech DuoTeach::OnSpeakStop() {
         return AfterSpeech::kNormal;
     }
     speaking_ = false;
+    // The reply is over; the next wake-up is a student unless the partner hands over again.
+    // (Not cleared at speech start: the assistant often speaks a sentence before its tool call.)
+    partner_turn_pending_ = false;
     const bool online = !peer_id_.empty() && Now() - peer_seen_us_ < kPeerTimeout;
     if (!online) {
         return AfterSpeech::kListenStudent;
@@ -241,6 +244,11 @@ void DuoTeach::AddSpokenText(const std::string& text) {
     }
     std::lock_guard<std::mutex> lock(mutex_);
     if (!speaking_ || spoken_text_.size() >= kMaxText) {
+        return;
+    }
+    // Tool-call markup the assistant sometimes reads out ("% self.duo.mode...") is not lesson text.
+    const auto first = text.find_first_not_of(" \t");
+    if (first == std::string::npos || text[first] == '%' || text.find("self.") != std::string::npos) {
         return;
     }
     if (!spoken_text_.empty()) {
@@ -340,6 +348,7 @@ void DuoTeach::HandleMessage(const char* data, int len, const struct sockaddr_in
         peer_speaking_ = true;
         peer_turn_ = message_turn;
         peer_text_.clear();
+        partner_turn_pending_ = false;
         if (speaking_ && my_id_ < peer_id_) {
             // Both started at once: the robot with the smaller id keeps talking, the other yields.
             return;
