@@ -87,6 +87,9 @@ endif()
 
 # Physics exam practice (self.study.* MCP tools). A board enables it by calling
 # PhysicsTutor::GetInstance().RegisterTools() from its InitializeTools().
+# Two robots teaching together (self.duo.mode), shared by every board.
+list(APPEND SOURCES "duo/duo_teach.cc")
+
 list(APPEND SOURCES "study/physics_tutor.cc" "study/physics_bank_data.cc" "study/study_timer.cc" "study/firmware_update.cc")
 
 # Car mode (GPS module, camera/speed/traffic alerts): only the TFT board has free pins for it.

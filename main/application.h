@@ -121,6 +121,10 @@ public:
     // Sends `text` to the assistant as if the user had said it (on-screen buttons use this).
     // Opens a conversation when idle; interrupts the reply when the assistant is speaking.
     void AskAssistant(const std::string& text);
+    // Two robots teaching together (main/duo): called in the main task by DuoTeach.
+    void DuoListenToPeer();         // The partner started speaking: record it
+    void DuoPeerDone(bool reply);   // The partner finished: answer it, or go quiet
+    void DuoYield();                // The student woke the partner: go quiet
     bool UpgradeFirmware(const std::string& url, const std::string& version = "");
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
@@ -169,6 +173,10 @@ private:
     bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
     bool pending_listening_start_ = false;  // Waiting for playback to drain before starting listening (auto mode)
     int clock_ticks_ = 0;
+    bool duo_peer_listen_ = false;   // Recording the partner robot (manual listening)
+    bool duo_reply_to_peer_ = false; // The next reply answers the partner, not the student
+    bool duo_yield_ = false;         // The current reply was cut off for the partner
+    int duo_done_pending_ = 0;       // Partner finished while connecting: 1 answer, 2 quiet
     TaskHandle_t activation_task_handle_ = nullptr;
 
 
@@ -182,6 +190,7 @@ private:
     void HandleActivationDoneEvent();
     void HandleWakeWordDetectedEvent();
     void StopRadioAndResumeChat();
+    void DuoClaimFloor();
     void UpdateMusicVisualizer();
     void ContinueOpenAudioChannel(ListeningMode mode);
     void BeginWakeWordInvoke(const std::string& wake_word);
