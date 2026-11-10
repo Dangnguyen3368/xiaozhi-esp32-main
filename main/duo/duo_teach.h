@@ -37,6 +37,9 @@ public:
     void CancelSpeech();      // This reply was cut short; do not hand the turn on.
     void OnPeerListenStart();
     void OnPeerListenEnd();
+    void AddSpokenText(const std::string& text);  // One sentence of this robot's reply
+    void OnReplyRequested();  // Sent the partner's speech to the server; waiting for the answer
+    void OnHeard();           // The server recognised speech (STT); the answer is on its way
 
 private:
     DuoTeach() = default;
@@ -47,8 +50,9 @@ private:
     };
 
     void Task();
-    void Broadcast(const std::string& event, int turn = 0, bool final_turn = false);
-    void HandleMessage(const char* data, int len);
+    void Broadcast(const std::string& event, int turn = 0, bool final_turn = false,
+                   const std::string& text = "");
+    void HandleMessage(const char* data, int len, const struct sockaddr_in& from);
     void SaveSettings();
     std::string StatusText() const;
 
@@ -66,6 +70,8 @@ private:
     bool peer_speaking_ = false;
     int64_t peer_quiet_since_us_ = 0;
     int peer_turn_ = 0;
+    uint32_t peer_ip_ = 0;          // Network byte order; 0 until the partner is heard
+    std::string peer_text_;         // What the partner said in its last turn (from its TTS text)
 
     // This robot's state.
     bool speaking_ = false;
@@ -75,6 +81,11 @@ private:
     int64_t end_wait_since_us_ = 0;
     int64_t claim_us_ = 0;
     bool peer_listening_ = false;   // Recording the partner right now
+    std::string spoken_text_;       // This robot's current reply, sent with "end"
+    // Waiting for the server to answer the partner: 1 = after the recording, 2 = recognised,
+    // 3 = after sending the partner's words as text. Each stage falls back to the next.
+    int reply_stage_ = 0;
+    int64_t reply_stage_since_us_ = 0;
     int64_t peer_listen_since_us_ = 0;
 };
 

@@ -30,6 +30,22 @@ constexpr int64_t kQuietGrace = 5 * kSecond;       // Lost "end": partner quiet 
 constexpr int64_t kMaxListen = 120 * kSecond;      // Longest partner speech we record
 constexpr int64_t kClaimWindow = 2 * kSecond;      // Both woken at once: the first robot keeps it
 constexpr int kCopies = 3;                         // Wi-Fi broadcasts are not acknowledged
+constexpr size_t kMaxText = 700;                   // Bytes of spoken text sent with "end"
+constexpr int64_t kMicReplyWait = 7 * kSecond;     // No STT after the recording: send the text
+constexpr int64_t kHeardReplyWait = 25 * kSecond;  // STT but no answer: give up
+constexpr int64_t kTextReplyWait = 12 * kSecond;   // No answer to the text either: ask the student
+
+// Cut at a UTF-8 character boundary.
+std::string Truncate(const std::string& text, size_t max_bytes) {
+    if (text.size() <= max_bytes) {
+        return text;
+    }
+    size_t end = max_bytes;
+    while (end > 0 && (static_cast<unsigned char>(text[end]) & 0xC0) == 0x80) {
+        --end;
+    }
+    return text.substr(0, end);
+}
 
 int64_t Now() { return esp_timer_get_time(); }
 }  // namespace
@@ -103,7 +119,7 @@ void DuoTeach::Start() {
                 nullptr);
 }
 
-void DuoTeach::Broadcast(const std::string& event, int turn, bool final_turn) {
+void DuoTeach::Broadcast(const std::string& event, int turn, bool final_turn, const std::string& text) {
     // Caller holds mutex_.
     cJSON* json = cJSON_CreateObject();
     cJSON_AddStringToObject(json, "id", my_id_.c_str());
@@ -112,13 +128,16 @@ void DuoTeach::Broadcast(const std::string& event, int turn, bool final_turn) {
     cJSON_AddNumberToObject(json, "turn", turn);
     cJSON_AddBoolToObject(json, "final", final_turn);
     cJSON_AddBoolToObject(json, "spk", speaking_ || end_pending_);
-    char* text = cJSON_PrintUnformatted(json);
+    if (!text.empty()) {
+        cJSON_AddStringToObject(json, "text", text.c_str());
+    }
+    char* printed = cJSON_PrintUnformatted(json);
     cJSON_Delete(json);
-    if (text == nullptr) {
+    if (printed == nullptr) {
         return;
     }
-    outbox_.push_back({std::string(kMagic) + text, event == "hi" ? 1 : kCopies});
-    cJSON_free(text);
+    outbox_.push_back({std::string(kMagic) + printed, event == "hi" ? 1 : kCopies});
+    cJSON_free(printed);
     ESP_LOGI(TAG, "-> %s turn %d%s", event.c_str(), turn, final_turn ? " (last)" : "");
 }
 
@@ -129,6 +148,8 @@ void DuoTeach::OnSpeakStart(bool reply_to_peer) {
     std::lock_guard<std::mutex> lock(mutex_);
     speaking_ = true;
     end_pending_ = false;
+    reply_stage_ = 0;
+    spoken_text_.clear();
     my_turn_ = reply_to_peer ? peer_turn_ + 1 : 1;
     Broadcast("start", my_turn_);
 }
@@ -174,6 +195,7 @@ void DuoTeach::OnClaimFloor() {
     end_pending_ = false;
     peer_listening_ = false;
     claim_us_ = Now();
+    reply_stage_ = 0;
     Broadcast("claim");
 }
 
@@ -188,7 +210,35 @@ void DuoTeach::OnPeerListenEnd() {
     peer_listening_ = false;
 }
 
-void DuoTeach::HandleMessage(const char* data, int len) {
+void DuoTeach::AddSpokenText(const std::string& text) {
+    if (!enabled_) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!speaking_ || spoken_text_.size() >= kMaxText) {
+        return;
+    }
+    if (!spoken_text_.empty()) {
+        spoken_text_ += ' ';
+    }
+    spoken_text_ = Truncate(spoken_text_ + text, kMaxText);
+}
+
+void DuoTeach::OnReplyRequested() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    reply_stage_ = 1;
+    reply_stage_since_us_ = Now();
+}
+
+void DuoTeach::OnHeard() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (reply_stage_ == 1) {
+        reply_stage_ = 2;
+        reply_stage_since_us_ = Now();
+    }
+}
+
+void DuoTeach::HandleMessage(const char* data, int len, const struct sockaddr_in& from_addr) {
     if (len <= static_cast<int>(sizeof(kMagic) - 1) || strncmp(data, kMagic, sizeof(kMagic) - 1) != 0) {
         return;
     }
@@ -202,6 +252,7 @@ void DuoTeach::HandleMessage(const char* data, int len) {
     auto turn = cJSON_GetObjectItem(json, "turn");
     auto final_turn = cJSON_GetObjectItem(json, "final");
     auto spk = cJSON_GetObjectItem(json, "spk");
+    auto said = cJSON_GetObjectItem(json, "text");
     if (!cJSON_IsString(id) || !cJSON_IsNumber(seq) || !cJSON_IsString(ev) || my_id_ == id->valuestring) {
         cJSON_Delete(json);
         return;
@@ -212,7 +263,14 @@ void DuoTeach::HandleMessage(const char* data, int len) {
     const bool is_final = cJSON_IsTrue(final_turn);
     const bool peer_spk = cJSON_IsTrue(spk);
     const std::string from = id->valuestring;
+    std::string message_text = cJSON_IsString(said) ? Truncate(said->valuestring, kMaxText) : "";
     cJSON_Delete(json);
+    // The text goes back to the server inside a hand-built JSON string: keep it plain.
+    for (auto& c : message_text) {
+        if (c == '"' || c == '\\' || static_cast<unsigned char>(c) < 0x20) {
+            c = ' ';
+        }
+    }
 
     auto& app = Application::GetInstance();
     std::unique_lock<std::mutex> lock(mutex_);
@@ -228,6 +286,7 @@ void DuoTeach::HandleMessage(const char* data, int len) {
     }
     peer_last_seq_ = message_seq;
     peer_seen_us_ = now;
+    peer_ip_ = from_addr.sin_addr.s_addr;
     if (!was_online) {
         ESP_LOGI(TAG, "Partner robot %s online", from.c_str());
         app.Schedule([]() {
@@ -247,6 +306,7 @@ void DuoTeach::HandleMessage(const char* data, int len) {
     if (event == "start") {
         peer_speaking_ = true;
         peer_turn_ = message_turn;
+        peer_text_.clear();
         if (speaking_ && my_id_ < peer_id_) {
             // Both started at once: the robot with the smaller id keeps talking, the other yields.
             return;
@@ -258,6 +318,7 @@ void DuoTeach::HandleMessage(const char* data, int len) {
         peer_quiet_since_us_ = now;
         if (event == "end") {
             peer_turn_ = message_turn;
+            peer_text_ = message_text;
         }
         const bool reply = event == "end" && !is_final;
         lock.unlock();
@@ -276,7 +337,7 @@ void DuoTeach::HandleMessage(const char* data, int len) {
 void DuoTeach::Task() {
     int sock = -1;
     int64_t last_hello = 0;
-    char buffer[256];
+    static char buffer[1536];
 
     while (true) {
         if (!enabled_) {
@@ -288,6 +349,15 @@ void DuoTeach::Task() {
             continue;
         }
         if (sock < 0) {
+            // Opening a socket before the network stack is up crashes lwIP ("Invalid mbox"),
+            // so wait until the robot has finished starting and connected to Wi-Fi.
+            const auto state = Application::GetInstance().GetDeviceState();
+            if (state == kDeviceStateUnknown || state == kDeviceStateStarting ||
+                state == kDeviceStateWifiConfiguring || state == kDeviceStateActivating ||
+                state == kDeviceStateUpgrading) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                continue;
+            }
             sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
             if (sock < 0) {
                 vTaskDelay(pdMS_TO_TICKS(2000));
@@ -318,7 +388,7 @@ void DuoTeach::Task() {
                                  reinterpret_cast<sockaddr*>(&from), &from_len);
         if (len > 0) {
             buffer[len] = '\0';
-            HandleMessage(buffer, len);
+            HandleMessage(buffer, len, from);
         }
 
         auto& app = Application::GetInstance();
@@ -326,6 +396,9 @@ void DuoTeach::Task() {
         std::vector<std::string> to_send;
         bool schedule_done = false;
         bool done_reply = false;
+        int fallback = 0;  // 1 = ask the server with the partner's text, 2 = listen to the student
+        std::string fallback_text;
+        uint32_t peer_ip = 0;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             if (now - last_hello >= kHelloInterval) {
@@ -334,7 +407,7 @@ void DuoTeach::Task() {
             }
             if (end_pending_ && (app.GetAudioService().IsPlaybackIdle() || now - end_wait_since_us_ > 30 * kSecond)) {
                 end_pending_ = false;
-                Broadcast("end", my_turn_, end_final_);
+                Broadcast("end", my_turn_, end_final_, spoken_text_);
             }
             // Safety net if the partner's "end" got lost or the partner disappeared.
             if (peer_listening_) {
@@ -350,6 +423,26 @@ void DuoTeach::Task() {
                     done_reply = !gone && peer_turn_ < max_turns_;
                 }
             }
+            // The server never answered the partner: try its words as text, then the student.
+            if (reply_stage_ != 0) {
+                const int64_t waited = now - reply_stage_since_us_;
+                if (reply_stage_ == 1 && waited > kMicReplyWait) {
+                    ESP_LOGW(TAG, "No answer to the recording; sending the partner's words as text");
+                    fallback = peer_text_.empty() ? 2 : 1;
+                    fallback_text = peer_text_;
+                } else if (reply_stage_ == 2 && waited > kHeardReplyWait) {
+                    ESP_LOGW(TAG, "Server heard the partner but did not answer");
+                    fallback = 2;
+                } else if (reply_stage_ == 3 && waited > kTextReplyWait) {
+                    ESP_LOGW(TAG, "No answer to the partner's words either");
+                    fallback = 2;
+                }
+                if (fallback != 0) {
+                    reply_stage_ = fallback == 1 ? 3 : 0;
+                    reply_stage_since_us_ = now;
+                }
+            }
+            peer_ip = peer_ip_;
             for (auto& out : outbox_) {
                 to_send.push_back(out.payload);
                 --out.copies_left;
@@ -361,14 +454,26 @@ void DuoTeach::Task() {
         if (schedule_done) {
             app.Schedule([done_reply]() { Application::GetInstance().DuoPeerDone(done_reply); });
         }
+        if (fallback == 1) {
+            app.Schedule([text = std::move(fallback_text)]() { Application::GetInstance().DuoAskWithText(text); });
+        } else if (fallback == 2) {
+            app.Schedule([]() { Application::GetInstance().DuoListenToStudent(); });
+        }
 
         if (!to_send.empty()) {
             sockaddr_in to = {};
             to.sin_family = AF_INET;
             to.sin_port = htons(kPort);
             to.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+            sockaddr_in peer = to;
+            peer.sin_addr.s_addr = peer_ip;
             for (const auto& payload : to_send) {
                 sendto(sock, payload.data(), payload.size(), 0, reinterpret_cast<sockaddr*>(&to), sizeof(to));
+                // Broadcasts are often lost while Wi-Fi sleeps; unicast is acknowledged and retried.
+                if (peer_ip != 0) {
+                    sendto(sock, payload.data(), payload.size(), 0, reinterpret_cast<sockaddr*>(&peer),
+                           sizeof(peer));
+                }
             }
         }
     }

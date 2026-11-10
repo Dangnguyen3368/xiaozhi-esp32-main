@@ -697,6 +697,9 @@ void Application::InitializeProtocol() {
                         glyphs.clear();
                     }
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
+                    Schedule([sentence = std::string(text->valuestring)]() {
+                        DuoTeach::GetInstance().AddSpokenText(sentence);
+                    });
                     if (strstr(text->valuestring, "play_music") != nullptr) {
                         // The server announces its music tool call, then streams the song as TTS.
                         Schedule([this]() {
@@ -722,6 +725,7 @@ void Application::InitializeProtocol() {
                     return;
                 }
                 ignore_turn_ = false;
+                DuoTeach::GetInstance().OnHeard();
                 std::vector<TextGlyph> glyphs;
                 uint8_t bpp = 0;
                 if (!TextGlyphPayload::Parse(root, glyphs, bpp)) {
@@ -1168,7 +1172,6 @@ void Application::HandleStateChangedEvent() {
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("listening");
-            duo_reply_to_peer_ = false;  // A reply that never came; the next one is a new turn
             if (duo_done_pending_ != 0) {
                 // The partner robot finished while this one was still connecting.
                 const bool reply = duo_done_pending_ == 1;
@@ -1517,9 +1520,66 @@ void Application::DuoPeerDone(bool reply) {
         duo_reply_to_peer_ = true;
         protocol_->SendStopListening();
         SetDeviceState(kDeviceStateIdle);
+        DuoTeach::GetInstance().OnReplyRequested();
     } else {
         ESP_LOGI(TAG, "Duo: partner handed over to the student, go quiet");
         protocol_->CloseAudioChannel();
+    }
+}
+
+void Application::DuoAskWithText(const std::string& text) {
+    if (!DuoTeach::GetInstance().enabled() || !protocol_ || radio_playback_active_) {
+        return;
+    }
+    const auto state = GetDeviceState();
+    if (state != kDeviceStateIdle && state != kDeviceStateListening) {
+        return;  // Already answering (or busy with something else)
+    }
+    ESP_LOGI(TAG, "Duo: answer the partner from its text");
+    duo_reply_to_peer_ = true;
+    const std::string ask = "Bạn dạy cùng vừa nói: " + text;
+    if (state == kDeviceStateIdle && !protocol_->IsAudioChannelOpened()) {
+        SetDeviceState(kDeviceStateConnecting);
+        Schedule([this, ask]() {
+            if (GetDeviceState() != kDeviceStateConnecting) {
+                return;
+            }
+            if (!protocol_->OpenAudioChannel()) {
+                SetDeviceState(kDeviceStateIdle);
+                return;
+            }
+            protocol_->SendWakeWordDetected(ask);
+            SetListeningMode(GetDefaultListeningMode());
+        });
+        return;
+    }
+    if (protocol_->IsAudioChannelOpened()) {
+        protocol_->SendWakeWordDetected(ask);
+        if (state == kDeviceStateIdle) {
+            SetListeningMode(GetDefaultListeningMode());
+        }
+    }
+}
+
+void Application::DuoListenToStudent() {
+    if (!DuoTeach::GetInstance().enabled() || !protocol_ || radio_playback_active_) {
+        return;
+    }
+    duo_reply_to_peer_ = false;
+    const auto state = GetDeviceState();
+    if (state == kDeviceStateIdle) {
+        ESP_LOGI(TAG, "Duo: no answer, listen to the student");
+        play_popup_on_listening_ = true;
+        ListeningMode mode = GetDefaultListeningMode();
+        if (!protocol_->IsAudioChannelOpened()) {
+            SetDeviceState(kDeviceStateConnecting);
+            Schedule([this, mode]() { ContinueOpenAudioChannel(mode); });
+            return;
+        }
+        SetListeningMode(mode);
+    } else if (state == kDeviceStateListening && listening_mode_ == kListeningModeManualStop) {
+        listening_mode_ = GetDefaultListeningMode();
+        protocol_->SendStartListening(listening_mode_);
     }
 }
 

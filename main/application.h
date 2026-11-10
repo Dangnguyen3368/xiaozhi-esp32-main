@@ -125,6 +125,8 @@ public:
     void DuoListenToPeer();         // The partner started speaking: record it
     void DuoPeerDone(bool reply);   // The partner finished: answer it, or go quiet
     void DuoYield();                // The student woke the partner: go quiet
+    void DuoAskWithText(const std::string& text);  // The recording got no answer: send the words
+    void DuoListenToStudent();      // Nobody answered: open the microphone for the student
     bool UpgradeFirmware(const std::string& url, const std::string& version = "");
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
