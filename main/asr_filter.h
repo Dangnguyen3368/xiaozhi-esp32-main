@@ -34,6 +34,23 @@ inline bool IsAsrHallucination(const std::string& text) {
             return true;
         }
     }
+    // Heard on almost every wake-up from the short wake-word clip. Only the whole utterance
+    // counts: a real sentence that contains these words is kept.
+    std::string trimmed;
+    for (char c : lower) {
+        if (c != '.' && c != '!' && c != ',' && c != ' ') {
+            trimmed.push_back(c);
+        }
+    }
+    static const char* const kWholeUtterances[] = {
+        "cảmơncácbạn",
+        "cảmơncácbạnnhiều",
+    };
+    for (const char* utterance : kWholeUtterances) {
+        if (trimmed == utterance) {
+            return true;
+        }
+    }
     return false;
 }
 

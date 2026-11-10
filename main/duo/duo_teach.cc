@@ -9,6 +9,7 @@
 
 #include <cJSON.h>
 #include <esp_log.h>
+#include <esp_random.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -87,6 +88,7 @@ void DuoTeach::Start() {
         max_turns_ = std::clamp<int>(settings.GetInt("turns", 4), 2, 10);
     }
     my_id_ = SystemInfo::GetMacAddress();
+    my_boot_ = esp_random();
 
     McpServer::GetInstance().AddTool(
         "self.duo.mode",
@@ -123,6 +125,7 @@ void DuoTeach::Broadcast(const std::string& event, int turn, bool final_turn, co
     // Caller holds mutex_.
     cJSON* json = cJSON_CreateObject();
     cJSON_AddStringToObject(json, "id", my_id_.c_str());
+    cJSON_AddNumberToObject(json, "boot", my_boot_);
     cJSON_AddNumberToObject(json, "seq", ++seq_);
     cJSON_AddStringToObject(json, "ev", event.c_str());
     cJSON_AddNumberToObject(json, "turn", turn);
@@ -248,6 +251,7 @@ void DuoTeach::HandleMessage(const char* data, int len, const struct sockaddr_in
     }
     auto id = cJSON_GetObjectItem(json, "id");
     auto seq = cJSON_GetObjectItem(json, "seq");
+    auto boot = cJSON_GetObjectItem(json, "boot");
     auto ev = cJSON_GetObjectItem(json, "ev");
     auto turn = cJSON_GetObjectItem(json, "turn");
     auto final_turn = cJSON_GetObjectItem(json, "final");
@@ -259,6 +263,7 @@ void DuoTeach::HandleMessage(const char* data, int len, const struct sockaddr_in
     }
     const std::string event = ev->valuestring;
     const uint32_t message_seq = static_cast<uint32_t>(seq->valuedouble);
+    const uint32_t message_boot = cJSON_IsNumber(boot) ? static_cast<uint32_t>(boot->valuedouble) : 0;
     const int message_turn = cJSON_IsNumber(turn) ? turn->valueint : 0;
     const bool is_final = cJSON_IsTrue(final_turn);
     const bool peer_spk = cJSON_IsTrue(spk);
@@ -276,15 +281,20 @@ void DuoTeach::HandleMessage(const char* data, int len, const struct sockaddr_in
     std::unique_lock<std::mutex> lock(mutex_);
     const int64_t now = Now();
     const bool was_online = !peer_id_.empty() && now - peer_seen_us_ < kPeerTimeout;
-    if (from == peer_id_) {
-        // Drop the repeated copies; a much smaller number means the partner restarted.
-        if (message_seq <= peer_last_seq_ && peer_last_seq_ - message_seq < 1000) {
-            return;
-        }
-    } else {
+    if (from != peer_id_ || message_boot != peer_boot_) {
+        // New partner, or the partner restarted and counts from 1 again.
         peer_id_ = from;
+        peer_boot_ = message_boot;
+        peer_seen_seqs_.clear();
     }
-    peer_last_seq_ = message_seq;
+    // Every message comes several times (repeats, broadcast and unicast): handle it once.
+    if (std::find(peer_seen_seqs_.begin(), peer_seen_seqs_.end(), message_seq) != peer_seen_seqs_.end()) {
+        return;
+    }
+    peer_seen_seqs_.push_back(message_seq);
+    if (peer_seen_seqs_.size() > 32) {
+        peer_seen_seqs_.erase(peer_seen_seqs_.begin());
+    }
     peer_seen_us_ = now;
     peer_ip_ = from_addr.sin_addr.s_addr;
     if (!was_online) {
@@ -384,11 +394,14 @@ void DuoTeach::Task() {
 
         sockaddr_in from = {};
         socklen_t from_len = sizeof(from);
-        const int len = recvfrom(sock, buffer, sizeof(buffer) - 1, 0,
-                                 reinterpret_cast<sockaddr*>(&from), &from_len);
-        if (len > 0) {
+        int len = recvfrom(sock, buffer, sizeof(buffer) - 1, 0, reinterpret_cast<sockaddr*>(&from), &from_len);
+        // Empty the socket each time: lwIP keeps only a few datagrams per socket.
+        while (len > 0) {
             buffer[len] = '\0';
             HandleMessage(buffer, len, from);
+            from_len = sizeof(from);
+            len = recvfrom(sock, buffer, sizeof(buffer) - 1, MSG_DONTWAIT, reinterpret_cast<sockaddr*>(&from),
+                           &from_len);
         }
 
         auto& app = Application::GetInstance();
