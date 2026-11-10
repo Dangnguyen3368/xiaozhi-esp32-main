@@ -65,7 +65,9 @@ private:
     mutable std::mutex mutex_;
     std::vector<Outgoing> outbox_;
     std::string peer_id_;
-    uint32_t peer_last_seq_ = 0;
+    uint32_t my_boot_ = 0;          // Random per start, so the partner notices a restart
+    uint32_t peer_boot_ = 0;
+    std::vector<uint32_t> peer_seen_seqs_;  // Recent message numbers, to drop repeated copies
     int64_t peer_seen_us_ = 0;
     bool peer_speaking_ = false;
     int64_t peer_quiet_since_us_ = 0;
