@@ -34,7 +34,7 @@ constexpr int kCopies = 3;                         // Wi-Fi broadcasts are not a
 constexpr size_t kMaxText = 700;                   // Bytes of spoken text sent with "end"
 constexpr int64_t kMicReplyWait = 7 * kSecond;     // No STT after the recording: send the text
 constexpr int64_t kHeardReplyWait = 25 * kSecond;  // STT but no answer: give up
-constexpr int64_t kTextReplyWait = 12 * kSecond;   // No answer to the text either: ask the student
+constexpr int64_t kTextReplyWait = 15 * kSecond;   // No answer to the text either: ask the student
 
 // Cut at a UTF-8 character boundary.
 std::string Truncate(const std::string& text, size_t max_bytes) {
@@ -95,8 +95,12 @@ void DuoTeach::Start() {
         "Two robots teaching together (hai robot cùng giảng bài). When on, this robot and a second "
         "robot on the same Wi-Fi take turns: while one speaks the other listens, then answers or adds "
         "to what its partner said; after `turns` replies between them, the robot asks the student. "
-        "Each robot must be switched on separately. Actions: `on`, `off`, `status`. `turns` (2-10) "
-        "changes the number of replies in a row between the robots; 0 keeps the current value.",
+        "Each robot must be switched on separately. Actions: `on`, `off`, `status`, `partner_said`. "
+        "`turns` (2-10) changes the number of replies in a row between the robots; 0 keeps it. "
+        "IMPORTANT: when the user message is exactly \"" DUO_CUE "\", your partner robot has just "
+        "finished speaking: call this tool with action `partner_said` to get its exact words, then "
+        "continue the lesson from them (answer, add to, or question what it said). Never answer "
+        "\"" DUO_CUE "\" without calling the tool first.",
         PropertyList({Property("action", kPropertyTypeString),
                       Property("turns", kPropertyTypeInteger, 0, 0, 10)}),
         [this](const PropertyList& properties) -> ReturnValue {
@@ -105,12 +109,20 @@ void DuoTeach::Start() {
             if (turns >= 2) {
                 max_turns_ = turns;
             }
+            if (action == "partner_said") {
+                std::lock_guard<std::mutex> lock(mutex_);
+                if (peer_text_.empty()) {
+                    return std::string("Robot bạn chưa nói gì (hoặc chưa gửi được chữ). Hãy hỏi học sinh.");
+                }
+                return "Robot bạn vừa nói (lượt " + std::to_string(peer_turn_) + "/" +
+                       std::to_string(max_turns_) + "): " + peer_text_;
+            }
             if (action == "on") {
                 enabled_ = true;
             } else if (action == "off") {
                 enabled_ = false;
             } else if (action != "status") {
-                return std::string("Dùng action on, off hoặc status.");
+                return std::string("Dùng action on, off, status hoặc partner_said.");
             }
             SaveSettings();
             ESP_LOGI(TAG, "Duo mode %s, %d turns", enabled_ ? "on" : "off", max_turns_);
@@ -229,7 +241,7 @@ void DuoTeach::AddSpokenText(const std::string& text) {
 
 void DuoTeach::OnReplyRequested() {
     std::lock_guard<std::mutex> lock(mutex_);
-    reply_stage_ = 1;
+    reply_stage_ = 3;
     reply_stage_since_us_ = Now();
 }
 

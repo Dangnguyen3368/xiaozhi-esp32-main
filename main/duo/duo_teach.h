@@ -17,6 +17,11 @@
 #include <string>
 #include <vector>
 
+// Short phrase sent to the server (as a detected phrase) when the partner robot hands over the
+// turn. The server rejects long detect texts, so the partner's words are fetched by the
+// assistant through self.duo.mode action partner_said instead.
+#define DUO_CUE "Mời bạn nói tiếp"
+
 class DuoTeach {
 public:
     static DuoTeach& GetInstance();

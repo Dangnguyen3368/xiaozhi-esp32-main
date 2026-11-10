@@ -1466,64 +1466,49 @@ void Application::DuoListenToPeer() {
         StopNotification();
         state = kDeviceStateIdle;
     }
+    // The partner's words arrive as text when it finishes, so the microphone stays closed: speech
+    // recognition of another robot's loudspeaker was too garbled to follow the lesson.
     if (state == kDeviceStateIdle) {
-        ESP_LOGI(TAG, "Duo: listening to the partner robot");
-        duo_peer_listen_ = true;
-        duo_done_pending_ = 0;
-        DuoTeach::GetInstance().OnPeerListenStart();
-        if (!protocol_->IsAudioChannelOpened()) {
-            SetDeviceState(kDeviceStateConnecting);
-            Schedule([this]() { ContinueOpenAudioChannel(kListeningModeManualStop); });
-            return;
-        }
-        SetListeningMode(kListeningModeManualStop);
+        ESP_LOGI(TAG, "Duo: partner speaks, wait quietly");
     } else if (state == kDeviceStateListening) {
-        if (duo_peer_listen_) {
-            return;
-        }
-        // Was waiting for the student: keep the microphone open, but let the partner finish
-        // instead of letting the server cut in at the first pause.
-        ESP_LOGI(TAG, "Duo: partner speaks, switch to manual listening");
-        duo_peer_listen_ = true;
-        DuoTeach::GetInstance().OnPeerListenStart();
-        listening_mode_ = kListeningModeManualStop;
-        if (!pending_listening_start_) {
-            protocol_->SendStartListening(kListeningModeManualStop);
-        }
+        ESP_LOGI(TAG, "Duo: partner speaks, close the microphone");
+        SetDeviceState(kDeviceStateIdle);
     } else if (state == kDeviceStateSpeaking) {
         // Both robots started at once and the partner keeps the turn.
         ESP_LOGI(TAG, "Duo: partner keeps the turn, stop speaking");
-        AbortSpeaking(kAbortReasonNone);
+        duo_yield_ = true;
         DuoTeach::GetInstance().CancelSpeech();
-        duo_peer_listen_ = true;
-        DuoTeach::GetInstance().OnPeerListenStart();
-        SetListeningMode(kListeningModeManualStop);
+        AbortSpeaking(kAbortReasonNone);
+    } else {
+        return;
     }
+    duo_peer_listen_ = true;
+    duo_done_pending_ = 0;
+    DuoTeach::GetInstance().OnPeerListenStart();
 }
 
 void Application::DuoPeerDone(bool reply) {
     if (!duo_peer_listen_) {
         return;
     }
-    const auto state = GetDeviceState();
-    if (state == kDeviceStateConnecting) {
-        duo_done_pending_ = reply ? 1 : 2;
-        return;
-    }
     duo_peer_listen_ = false;
+    duo_done_pending_ = 0;
     DuoTeach::GetInstance().OnPeerListenEnd();
-    if (state != kDeviceStateListening || !protocol_) {
+    if (!protocol_) {
         return;
     }
+    const auto state = GetDeviceState();
     if (reply) {
-        ESP_LOGI(TAG, "Duo: partner finished, answer it");
-        duo_reply_to_peer_ = true;
-        protocol_->SendStopListening();
-        SetDeviceState(kDeviceStateIdle);
+        if (state != kDeviceStateIdle && state != kDeviceStateListening) {
+            return;
+        }
+        // Hand the turn to the assistant with a short cue; it fetches the partner's exact words
+        // with self.duo.mode (action partner_said).
+        ESP_LOGI(TAG, "Duo: partner finished, my turn");
+        DuoAskWithText(DUO_CUE);
         DuoTeach::GetInstance().OnReplyRequested();
     } else {
-        ESP_LOGI(TAG, "Duo: partner handed over to the student, go quiet");
-        protocol_->CloseAudioChannel();
+        ESP_LOGI(TAG, "Duo: partner handed over to the student, stay quiet");
     }
 }
 
@@ -1537,7 +1522,7 @@ void Application::DuoAskWithText(const std::string& text) {
     }
     ESP_LOGI(TAG, "Duo: answer the partner from its text");
     duo_reply_to_peer_ = true;
-    const std::string ask = "Bạn dạy cùng vừa nói: " + text;
+    const std::string ask = text;
     if (state == kDeviceStateIdle && !protocol_->IsAudioChannelOpened()) {
         SetDeviceState(kDeviceStateConnecting);
         Schedule([this, ask]() {
