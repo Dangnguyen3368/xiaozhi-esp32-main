@@ -31,7 +31,7 @@ constexpr int64_t kQuietGrace = 5 * kSecond;       // Lost "end": partner quiet 
 constexpr int64_t kMaxListen = 120 * kSecond;      // Longest partner speech we record
 constexpr int64_t kClaimWindow = 2 * kSecond;      // Both woken at once: the first robot keeps it
 constexpr int kCopies = 3;                         // Wi-Fi broadcasts are not acknowledged
-constexpr size_t kMaxText = 700;                   // Bytes of spoken text sent with "end"
+constexpr size_t kMaxText = 900;                   // Bytes of spoken text sent with "end"
 constexpr int64_t kMicReplyWait = 7 * kSecond;     // No STT after the recording: send the text
 constexpr int64_t kHeardReplyWait = 25 * kSecond;  // STT but no answer: give up
 constexpr int64_t kTextReplyWait = 15 * kSecond;   // No answer to the text either: ask the student
@@ -97,10 +97,11 @@ void DuoTeach::Start() {
         "to what its partner said; after `turns` replies between them, the robot asks the student. "
         "Each robot must be switched on separately. Actions: `on`, `off`, `status`, `partner_said`. "
         "`turns` (2-10) changes the number of replies in a row between the robots; 0 keeps it. "
-        "IMPORTANT: when the user message is exactly \"" DUO_CUE "\", your partner robot has just "
-        "finished speaking: call this tool with action `partner_said` to get its exact words, then "
-        "continue the lesson from them (answer, add to, or question what it said). Never answer "
-        "\"" DUO_CUE "\" without calling the tool first.",
+        "IMPORTANT: while two-robot mode is on, whenever you are woken (the wake word, e.g. "
+        "\"" DUO_CUE "\", or a short greeting), FIRST call this tool with action `partner_said`. "
+        "If it returns your partner robot's words, continue the lesson from them (answer, add to, "
+        "correct or question what it said) and do not greet. If it says there is no new turn, a "
+        "student woke you: answer the student normally.",
         PropertyList({Property("action", kPropertyTypeString),
                       Property("turns", kPropertyTypeInteger, 0, 0, 10)}),
         [this](const PropertyList& properties) -> ReturnValue {
@@ -111,8 +112,15 @@ void DuoTeach::Start() {
             }
             if (action == "partner_said") {
                 std::lock_guard<std::mutex> lock(mutex_);
+                ESP_LOGI(TAG, "partner_said asked (pending %d, %u bytes)", partner_turn_pending_,
+                         static_cast<unsigned>(peer_text_.size()));
+                if (!partner_turn_pending_) {
+                    return std::string("Không có lượt mới từ robot bạn: học sinh vừa gọi bạn. "
+                                       "Hãy trả lời học sinh bình thường.");
+                }
                 if (peer_text_.empty()) {
-                    return std::string("Robot bạn chưa nói gì (hoặc chưa gửi được chữ). Hãy hỏi học sinh.");
+                    return std::string("Robot bạn vừa nói xong nhưng không gửi được chữ. Hãy tự giảng "
+                                       "tiếp bài đang học hoặc hỏi học sinh.");
                 }
                 return "Robot bạn vừa nói (lượt " + std::to_string(peer_turn_) + "/" +
                        std::to_string(max_turns_) + "): " + peer_text_;
@@ -164,6 +172,7 @@ void DuoTeach::OnSpeakStart(bool reply_to_peer) {
     speaking_ = true;
     end_pending_ = false;
     reply_stage_ = 0;
+    partner_turn_pending_ = false;
     spoken_text_.clear();
     my_turn_ = reply_to_peer ? peer_turn_ + 1 : 1;
     Broadcast("start", my_turn_);
@@ -211,6 +220,7 @@ void DuoTeach::OnClaimFloor() {
     peer_listening_ = false;
     claim_us_ = Now();
     reply_stage_ = 0;
+    partner_turn_pending_ = false;
     Broadcast("claim");
 }
 
@@ -243,6 +253,7 @@ void DuoTeach::OnReplyRequested() {
     std::lock_guard<std::mutex> lock(mutex_);
     reply_stage_ = 3;
     reply_stage_since_us_ = Now();
+    partner_turn_pending_ = true;
 }
 
 void DuoTeach::OnHeard() {
@@ -341,6 +352,8 @@ void DuoTeach::HandleMessage(const char* data, int len, const struct sockaddr_in
         if (event == "end") {
             peer_turn_ = message_turn;
             peer_text_ = message_text;
+            ESP_LOGI(TAG, "Partner text %u bytes: %.60s", static_cast<unsigned>(peer_text_.size()),
+                     peer_text_.c_str());
         }
         const bool reply = event == "end" && !is_final;
         lock.unlock();
@@ -432,6 +445,7 @@ void DuoTeach::Task() {
             }
             if (end_pending_ && (app.GetAudioService().IsPlaybackIdle() || now - end_wait_since_us_ > 30 * kSecond)) {
                 end_pending_ = false;
+                ESP_LOGI(TAG, "Sending my text, %u bytes", static_cast<unsigned>(spoken_text_.size()));
                 Broadcast("end", my_turn_, end_final_, spoken_text_);
             }
             // Safety net if the partner's "end" got lost or the partner disappeared.

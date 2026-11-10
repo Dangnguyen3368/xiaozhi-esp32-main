@@ -17,10 +17,11 @@
 #include <string>
 #include <vector>
 
-// Short phrase sent to the server (as a detected phrase) when the partner robot hands over the
-// turn. The server rejects long detect texts, so the partner's words are fetched by the
-// assistant through self.duo.mode action partner_said instead.
-#define DUO_CUE "Mời bạn nói tiếp"
+// Sent to the server as the detected wake word when the partner robot hands over the turn.
+// xiaozhi.me accepts only real wake words in "listen detect" (any other text is rejected with
+// "Detect is only for wake words"), so the cue is the robot's own wake word and the assistant
+// fetches the partner's words through self.duo.mode action partner_said.
+#define DUO_CUE "你好小智"
 
 class DuoTeach {
 public:
@@ -92,6 +93,7 @@ private:
     // Waiting for the server to answer the partner: 1 = after the recording, 2 = recognised,
     // 3 = after sending the partner's words as text. Each stage falls back to the next.
     int reply_stage_ = 0;
+    bool partner_turn_pending_ = false;  // The wake cue was for the partner's words, not a student
     int64_t reply_stage_since_us_ = 0;
     int64_t peer_listen_since_us_ = 0;
 };
