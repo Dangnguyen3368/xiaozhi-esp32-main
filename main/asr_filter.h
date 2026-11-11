@@ -25,7 +25,9 @@ inline bool IsAsrHallucination(const std::string& text) {
         "theo dõi kênh",
         "cảm ơn các bạn đã theo dõi",
         "cảm ơn các bạn đã xem",
-        "hẹn gặp lại các bạn trong những video",
+        "gặp lại các bạn trong những video",
+        "gặp lại các bạn trong video",
+        "video tiếp theo",
         "like và share",
         "amara.org",
     };
