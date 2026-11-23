@@ -4,11 +4,17 @@
 #include "dual_screen_display.h"
 #include "system_reset.h"
 #include "application.h"
+#include "sdkconfig.h"
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
 #include "audio/internet_radio.h"
+#include "study/physics_tutor.h"
+#else
+#include "french/french_course.h"
+#include "french_view.h"
+#endif
 #include "pc/pc_control.h"
 #include "pc/photo_solver.h"
 #include "pc/bank_notify.h"
-#include "study/physics_tutor.h"
 #include "xpt2046_touch.h"
 #include "figure_view.h"
 #include "nav_ui.h"
@@ -92,7 +98,11 @@ private:
     DualScreenLcdDisplay* display_ = nullptr;
     i2c_master_bus_handle_t oled_i2c_bus_ = nullptr;
     std::unique_ptr<Xpt2046Touch> touch_;
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
     std::unique_ptr<InternetRadio> internet_radio_;
+#else
+    FrenchView french_view_;
+#endif
     FigureView figure_view_;
     std::unique_ptr<StudyMenu> study_menu_;
     ProgressView progress_view_;
@@ -111,22 +121,45 @@ private:
     bool AnyOverlayShown() const {
         return figure_view_.IsShown() || progress_view_.IsShown() || (study_menu_ && study_menu_->IsShown()) ||
                (wifi_setup_ && wifi_setup_->IsShown()) || nav_setup_.IsShown() ||
-               drive_view_.IsShown() || (control_center_ && control_center_->IsShown()) || launcher_.IsShown();
+               drive_view_.IsShown() || (control_center_ && control_center_->IsShown()) || launcher_.IsShown()
+#if CONFIG_XIAOZHI_FRENCH_EDITION
+               || french_view_.IsShown()
+#endif
+            ;
+    }
+
+    bool RadioRunning() const {
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
+        return internet_radio_ && internet_radio_->IsRunning();
+#else
+        return false;
+#endif
     }
 
     // The server ignores text sent as a wake phrase in the middle of a chat, so the problem is
     // picked and shown here; the assistant is only told its id so it can help with it.
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
     static void ShowProblemAndTell(bool review) {
         const auto id = PhysicsTutor::GetInstance().PickOnScreen(review);
         if (!id.empty()) {
             Application::GetInstance().AskAssistant("Em đang làm bài " + id);
         }
     }
+#endif
 
     void CreateStudyMenu() {
         StudyMenu::Actions actions;
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
         actions.practice = []() { ShowProblemAndTell(false); };
         actions.review = []() { ShowProblemAndTell(true); };
+#else
+        // French course: the lesson card, and vocabulary flash cards.
+        actions.practice = []() {
+            auto& course = FrenchCourse::GetInstance();
+            course.ShowLesson(course.current());
+        };
+        actions.review = []() { FrenchCourse::GetInstance().ShowQuiz(); };
+#endif
         actions.toggle_pomodoro = []() {
             auto& timer = StudyTimer::GetInstance();
             if (timer.GetState().running) {
@@ -135,6 +168,7 @@ private:
                 timer.Start(25, 5, true);
             }
         };
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
         actions.formulas = [](const std::string& topic) { PhysicsTutor::GetInstance().ShowFormulas(topic); };
         actions.progress = []() { PhysicsTutor::GetInstance().ShowProgress(); };
         actions.toggle_radio = [this]() {
@@ -157,6 +191,9 @@ private:
                 internet_radio_->Start(InternetRadio::kLocalStation);
             }
         };
+#else
+        actions.progress = []() { Application::GetInstance().AskAssistant("Cho mình xem tiến độ học tiếng Pháp"); };
+#endif
         actions.update_firmware = []() { FirmwareUpdate::GetInstance().CheckAndInstall(); };
         actions.wifi_setup = [this]() { wifi_setup_->Start(); };
         actions.pc_command = [](const std::string& action, const std::string& text) {
@@ -173,8 +210,10 @@ private:
             }
         };
         actions.pomodoro_running = []() { return StudyTimer::GetInstance().GetState().running; };
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
         actions.radio_running = [this]() { return internet_radio_ && internet_radio_->IsRunning(); };
         actions.local_music_running = [this]() { return internet_radio_ && internet_radio_->IsLocal(); };
+#endif
         actions.main_menu = [this]() { launcher_.Show(0); };
         CreateLauncher(actions);
         study_menu_ = std::make_unique<StudyMenu>(std::move(actions));
@@ -191,12 +230,40 @@ private:
                                        app.ToggleChatState();
                                    }
                                }};
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
         const AppEntry practice = {app_icon::kSchool, 0x5E35B1, text("Luyện thi"), study.practice};
+#else
+        const AppEntry practice = {app_icon::kSchool, 0x5E35B1, text("Tiếng Pháp"), study.practice};
+#endif
         const AppEntry drive = {app_icon::kCar, 0x00897B, text("Lái xe"),
                                 [this]() { drive_view_.Show(DriveView::Page::kSpeed); }};
         // Three pages: study, everyday apps, system.
         std::vector<AppLauncher::Page> pages(3);
         pages[0].title = "Học tập";
+#if CONFIG_XIAOZHI_FRENCH_EDITION
+        pages[0].apps = {
+            practice,
+            {app_icon::kReplay, 0xFB8C00, text("Ôn từ vựng"), study.review},
+            {app_icon::kFunctions, 0x00897B, text("Bài tiếp"), []() {
+                 auto& course = FrenchCourse::GetInstance();
+                 course.ShowLesson(course.current() + 1);
+             }},
+            {app_icon::kMonitoring, 0x43A047, text("Tiến độ"), study.progress},
+            {app_icon::kTimer, 0x8E24AA,
+             []() { return std::string(StudyTimer::GetInstance().GetState().running ? "Dừng giờ" : "Hẹn giờ"); },
+             study.toggle_pomodoro},
+            {app_icon::kCamera, 0xE53935, text("Giải ảnh"), [this]() { study_menu_->ShowPhoto(); }},
+        };
+        pages[1].title = "Tiện ích";
+        pages[1].apps = {
+            chat,
+            {app_icon::kComputer, 0x3949AB, text("Máy tính"), [this]() { study_menu_->ShowComputer(); }},
+            {app_icon::kBank, 0x2E7D32, text("Ngân hàng"), [this]() { study_menu_->ShowBank(); }},
+            drive,
+            {app_icon::kCalendar, 0x1E88E5, text("Lịch"), [this]() { home_.ShowNow(1); }},
+            {app_icon::kWeather, 0xFFA000, text("Thời tiết"), [this]() { home_.ShowNow(0); }},
+        };
+#else
         pages[0].apps = {
             practice,
             {app_icon::kReplay, 0xFB8C00, text("Ôn bài sai"), study.review},
@@ -211,7 +278,7 @@ private:
         pages[1].apps = {
             chat,
             {app_icon::kRadio, 0xD81B60,
-             [this]() { return std::string(internet_radio_ && internet_radio_->IsRunning() ? "Tắt nhạc" : "Radio"); },
+             [this]() { return std::string(RadioRunning() ? "Tắt nhạc" : "Radio"); },
              study.toggle_radio},
             {app_icon::kLibraryMusic, 0xF4511E,
              [this]() { return std::string(internet_radio_ && internet_radio_->IsLocal() ? "Bài tiếp" : "Nhạc PC"); },
@@ -222,6 +289,7 @@ private:
             {app_icon::kCalendar, 0x1E88E5, text("Lịch"), [this]() { home_.ShowNow(1); }},
             {app_icon::kWeather, 0xFFA000, text("Thời tiết"), [this]() { home_.ShowNow(0); }},
         };
+#endif
         pages[2].title = "Hệ thống";
         pages[2].apps = {
             {app_icon::kWifi, 0x00897B, text("Wi-Fi"), study.wifi_setup},
@@ -242,11 +310,13 @@ private:
 
     // Same action as the BOOT button: stop the radio if it plays, otherwise toggle chat.
     void ToggleChatOrStopRadio() {
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
         if (internet_radio_ && internet_radio_->IsRunning()) {
             ESP_LOGI(TAG, "Stopping Internet radio");
             internet_radio_->Stop();
             return;
         }
+#endif
         Application::GetInstance().ToggleChatState();
     }
 
@@ -496,7 +566,7 @@ private:
     // 物联网初始化，添加对 AI 可见设备
     void InitializeTools() {
         static LampController lamp(LAMP_GPIO);
-
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
         Application::GetInstance().SetRadioStopCallback([this]() {
             if (internet_radio_) {
                 internet_radio_->Stop();
@@ -574,9 +644,28 @@ private:
             []() { ShowProblemAndTell(false); },
         });
         tutor.RegisterTools();
+#else
+        auto& course = FrenchCourse::GetInstance();
+        course.SetLessonViewer([this](int lesson) {
+            figure_view_.Hide();
+            if (study_menu_) {
+                study_menu_->Hide();
+            }
+            french_view_.ShowLesson(lesson);
+        });
+        course.SetQuizViewer([this](const FrenchCourse::Quiz& quiz) {
+            figure_view_.Hide();
+            if (study_menu_) {
+                study_menu_->Hide();
+            }
+            french_view_.ShowQuiz(quiz);
+        });
+        course.RegisterTools();
+#endif
 
         auto& timer = StudyTimer::GetInstance();
         timer.SetListener([this](const StudyTimer::State& state) { pomodoro_badge_.Update(state); });
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
         timer.SetMusicControl([this](bool on) {
             if (!internet_radio_) {
                 return;
@@ -587,6 +676,7 @@ private:
                 internet_radio_->Stop();
             }
         });
+#endif
         timer.RegisterTool();
         FirmwareUpdate::GetInstance().RegisterTool();
         Weather::GetInstance().RegisterTools();
@@ -643,7 +733,7 @@ private:
             }
             nav_setup_.Show();
         });
-        nav::SetCanSpeak([this]() { return !(internet_radio_ && internet_radio_->IsRunning()); });
+        nav::SetCanSpeak([this]() { return !RadioRunning(); });
         nav::RegisterTools();
         // Started from the main loop: its task looks up the display through Board::GetInstance(),
         // which must not run while the board is still being built.

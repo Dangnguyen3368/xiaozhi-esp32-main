@@ -78,11 +78,15 @@ endif()
 
 # Optional Mochi face is only built for the Bread Compact WiFi OLED board.
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
-    list(APPEND SOURCES "boards/common/mochi_display.cc" "audio/internet_radio.cc" "pc/local_pc.cc" "pc/pc_control.cc" "pc/photo_solver.cc" "pc/bank_notify.cc" "pc/bank_amount.cc")
+    list(APPEND SOURCES "boards/common/mochi_display.cc" "pc/local_pc.cc" "pc/pc_control.cc" "pc/photo_solver.cc" "pc/bank_notify.cc" "pc/bank_amount.cc")
 endif()
 # The LCD variant of the same board has the radio too, plus Mochi on an optional second OLED.
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
-    list(APPEND SOURCES "boards/common/mochi_display.cc" "audio/internet_radio.cc" "pc/local_pc.cc" "pc/pc_control.cc" "pc/photo_solver.cc" "pc/bank_notify.cc" "pc/bank_amount.cc")
+    list(APPEND SOURCES "boards/common/mochi_display.cc" "pc/local_pc.cc" "pc/pc_control.cc" "pc/photo_solver.cc" "pc/bank_notify.cc" "pc/bank_amount.cc")
+endif()
+# The French tutor edition (CONFIG_XIAOZHI_FRENCH_EDITION) has no radio and no physics practice.
+if((CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI OR CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD) AND NOT CONFIG_XIAOZHI_FRENCH_EDITION)
+    list(APPEND SOURCES "audio/internet_radio.cc")
 endif()
 
 # Physics exam practice (self.study.* MCP tools). A board enables it by calling
@@ -90,7 +94,14 @@ endif()
 # Two robots teaching together (self.duo.mode), shared by every board.
 list(APPEND SOURCES "duo/duo_teach.cc")
 
-list(APPEND SOURCES "study/physics_tutor.cc" "study/physics_bank_data.cc" "study/study_timer.cc" "study/firmware_update.cc")
+list(APPEND SOURCES "study/study_timer.cc" "study/firmware_update.cc")
+if(CONFIG_XIAOZHI_FRENCH_EDITION)
+    # French course after "Le nouveau Taxi ! 1" (self.french.* tools); replaces the physics bank.
+    # The LCD board's french_view.cc comes in with the board sources and is empty otherwise.
+    list(APPEND SOURCES "french/french_course.cc" "french/french_lessons_data.cc")
+else()
+    list(APPEND SOURCES "study/physics_tutor.cc" "study/physics_bank_data.cc")
+endif()
 
 # Car mode (GPS module, camera/speed/traffic alerts): only the TFT board has free pins for it.
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)

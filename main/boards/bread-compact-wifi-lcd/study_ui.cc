@@ -15,6 +15,13 @@
 #define TAG "StudyUi"
 
 LV_FONT_DECLARE(font_vi_fallback_16);
+#if CONFIG_XIAOZHI_FRENCH_EDITION
+// French letters (ç, î, ë, œ...) first, then the Vietnamese ones: font_fr_fallback_16 chains to it.
+LV_FONT_DECLARE(font_fr_fallback_16);
+#define STUDY_TEXT_FALLBACK font_fr_fallback_16
+#else
+#define STUDY_TEXT_FALLBACK font_vi_fallback_16
+#endif
 
 namespace {
 constexpr int kLockTimeoutMs = 3000;
@@ -60,7 +67,7 @@ const lv_font_t* TextFont() {
             // font. Only a font loaded into RAM can take a fallback; built-in fonts live in flash.
             if (font != nullptr && font->fallback == nullptr &&
                 (esp_ptr_internal(font) || esp_ptr_external_ram(font))) {
-                const_cast<lv_font_t*>(font)->fallback = &font_vi_fallback_16;
+                const_cast<lv_font_t*>(font)->fallback = &STUDY_TEXT_FALLBACK;
             }
             return font;
         }
@@ -269,8 +276,8 @@ void StudyMenu::Build(Page page) {
     // Read the toggle states before taking the LVGL lock.
     const bool paired = page == Page::kComputer && actions_.pc_paired && actions_.pc_paired();
     const bool pomodoro = actions_.pomodoro_running && actions_.pomodoro_running();
-    const bool radio = actions_.radio_running && actions_.radio_running();
-    const bool local_music = actions_.local_music_running && actions_.local_music_running();
+    [[maybe_unused]] const bool radio = actions_.radio_running && actions_.radio_running();
+    [[maybe_unused]] const bool local_music = actions_.local_music_running && actions_.local_music_running();
     // Starts the robot's photo page, so do it before taking the LVGL lock too.
     const std::string photo_url =
         page == Page::kPhoto && actions_.phone_photo_url ? actions_.phone_photo_url() : std::string();
@@ -289,7 +296,11 @@ void StudyMenu::Build(Page page) {
 
     using study_ui::AddButton;
     panel_ = study_ui::CreateOverlay();
+#if CONFIG_XIAOZHI_FRENCH_EDITION
+    const char* title = "Menu học tiếng Pháp";
+#else
     const char* title = "Menu học tập";
+#endif
     if (formula_topics) {
         title = "Thẻ công thức";
     } else if (page == Page::kComputer) {
@@ -394,6 +405,32 @@ void StudyMenu::Build(Page page) {
         }
         add("Quay lại", kGrey, [this]() { Show(); });
     } else {
+#if CONFIG_XIAOZHI_FRENCH_EDITION
+        add("Bài học", kBlue, [this]() {
+            Hide();
+            if (actions_.practice) {
+                actions_.practice();
+            }
+        });
+        add("Ôn từ vựng", kOrange, [this]() {
+            Hide();
+            if (actions_.review) {
+                actions_.review();
+            }
+        });
+        add(pomodoro ? "Dừng hẹn giờ" : "Hẹn giờ học", kPurple, [this]() {
+            Hide();
+            if (actions_.toggle_pomodoro) {
+                actions_.toggle_pomodoro();
+            }
+        });
+        add("Tiến độ", kGreen, [this]() {
+            Hide();
+            if (actions_.progress) {
+                actions_.progress();
+            }
+        });
+#else
         add("Luyện thi", kBlue, [this]() {
             Hide();
             if (actions_.practice) {
@@ -431,6 +468,7 @@ void StudyMenu::Build(Page page) {
                 actions_.local_music();
             }
         });
+#endif
         add("Máy tính", kPurple, [this]() { ShowComputer(); });
         add("Wi-Fi", kTeal, [this]() {
             Hide();

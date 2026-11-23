@@ -5,11 +5,16 @@
 #include "settings.h"
 #include "system_reset.h"
 #include "application.h"
+#include "sdkconfig.h"
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
 #include "audio/internet_radio.h"
+#include "study/physics_tutor.h"
+#else
+#include "french/french_course.h"
+#endif
 #include "pc/pc_control.h"
 #include "pc/photo_solver.h"
 #include "pc/bank_notify.h"
-#include "study/physics_tutor.h"
 #include "study/study_timer.h"
 #include "button.h"
 #include "config.h"
@@ -41,7 +46,9 @@ private:
     esp_lcd_panel_handle_t panel_ = nullptr;
     Display* display_ = nullptr;
     MochiDisplay* mochi_display_ = nullptr;
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
     std::unique_ptr<InternetRadio> internet_radio_;
+#endif
     Button boot_button_;
     Button touch_button_;
     Button volume_up_button_;
@@ -127,11 +134,13 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnPressDown([this]() {
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
             if (internet_radio_ && internet_radio_->IsRunning()) {
                 ESP_LOGI(TAG, "BOOT pressed: stopping Internet radio");
                 internet_radio_->Stop();
                 return;
             }
+#endif
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting) {
                 EnterWifiConfigMode();
@@ -181,6 +190,7 @@ private:
     void InitializeTools() {
         static LampController lamp(LAMP_GPIO);
 
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
         Application::GetInstance().SetRadioStopCallback([this]() {
             if (internet_radio_) {
                 internet_radio_->Stop();
@@ -236,6 +246,7 @@ private:
                 }
                 return std::string("Use action 'play', 'next' or 'stop'.");
             });
+#endif
         PcControl::GetInstance().RegisterTool();
         photo_solver::RegisterTool();
         bank_notify::Start();
@@ -264,6 +275,7 @@ private:
                 return std::string("Saved. The display will restart in ") + face + " mode.";
             });
 
+#if !CONFIG_XIAOZHI_FRENCH_EDITION
         PhysicsTutor::GetInstance().RegisterTools();
 
         // Pomodoro study timer; its calm music uses the radio.
@@ -278,6 +290,11 @@ private:
                 internet_radio_->Stop();
             }
         });
+#else
+        // French course (no screen cards on the OLED: the lesson is taught by voice).
+        FrenchCourse::GetInstance().RegisterTools();
+        auto& timer = StudyTimer::GetInstance();
+#endif
         timer.RegisterTool();
     }
 

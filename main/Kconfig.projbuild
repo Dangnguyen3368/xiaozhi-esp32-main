@@ -121,6 +121,17 @@ choice
         bool "Serbian"
 endchoice
 
+config XIAOZHI_FRENCH_EDITION
+    bool "French tutor edition (no physics exam prep, no radio)"
+    default n
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
+    help
+        Second firmware variant of the bread-compact robots ("Bản tiếng Pháp"): the physics
+        exam practice (main/study/physics_*), the Internet radio and the computer music
+        player are left out, and a French course (main/french, lessons after the units of
+        "Le nouveau Taxi ! 1", self.french.* tools) takes their place. The normal build is
+        unchanged while this stays off. Build it in its own folder (see docs/fr/README.md).
+
 choice BOARD_TYPE
     prompt "Target Board"
     default BOARD_TYPE_BREAD_COMPACT_ESP32 if IDF_TARGET_ESP32

@@ -28,8 +28,13 @@ std::string ReleaseUrl(const std::string& file) {
 }
 
 std::string BinaryName() {
-    // The workflow names the binary after the board type, BOARD_TYPE.
+    // The workflow names the binary after the board type, BOARD_TYPE. The French tutor edition
+    // has its own binary in the same release, so it never installs the normal firmware.
+#if CONFIG_XIAOZHI_FRENCH_EDITION
+    return std::string("xiaozhi-") + BOARD_TYPE + "-fr.bin";
+#else
     return std::string("xiaozhi-") + BOARD_TYPE + ".bin";
+#endif
 }
 
 std::vector<int> ParseVersion(const std::string& version) {
