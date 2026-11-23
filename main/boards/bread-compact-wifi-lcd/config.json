@@ -7,6 +7,13 @@
             "sdkconfig_append": [
                 "CONFIG_LCD_ST7789_240X320=y"
             ]
+        },
+        {
+            "name": "bread-compact-wifi-lcd-fr",
+            "sdkconfig_append": [
+                "CONFIG_LCD_ILI9341_240X320_NO_IPS=y",
+                "CONFIG_XIAOZHI_FRENCH_EDITION=y"
+            ]
         }
     ]
 }

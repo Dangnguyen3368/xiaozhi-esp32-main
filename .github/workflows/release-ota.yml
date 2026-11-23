@@ -68,9 +68,45 @@ jobs:
           path: out/
           if-no-files-found: error
 
+  # French tutor edition (CONFIG_XIAOZHI_FRENCH_EDITION) of the same board, published in the same
+  # release as xiaozhi-<board>-fr.bin; only French robots download it.
+  build-fr:
+    name: Build French edition
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set firmware version
+        shell: bash
+        run: |
+          base=$(sed -n 's/^set(PROJECT_VER "\(.*\)")/\1/p' CMakeLists.txt)
+          version="${base}.${{ github.run_number }}"
+          sed -i "s/^set(PROJECT_VER \".*\")/set(PROJECT_VER \"${version}\")/" CMakeLists.txt
+
+      - name: Build
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/build.py "$BOARD" --name "${BOARD}-fr" --language "$LANGUAGE"
+          mkdir -p out
+          cp build/xiaozhi.bin "out/xiaozhi-${BOARD}-fr.bin"
+          cp build/merged-binary.bin "out/merged-binary-${BOARD}-fr.bin"
+
+      - name: Upload build
+        uses: actions/upload-artifact@v7
+        with:
+          name: ota-firmware-fr
+          path: out/
+          if-no-files-found: error
+
   release:
     name: Publish release
-    needs: build
+    needs: [build, build-fr]
+    # A failed French build must not hold back the normal firmware.
+    if: ${{ always() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -79,6 +115,13 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: ota-firmware
+          path: out
+
+      - name: Download French build
+        if: ${{ needs.build-fr.result == 'success' }}
+        uses: actions/download-artifact@v7
+        with:
+          name: ota-firmware-fr
           path: out
 
       - name: Create release
@@ -90,5 +133,5 @@ jobs:
             --repo "${{ github.repository }}" \
             --target "${{ github.sha }}" \
             --title "Firmware ${VERSION}" \
-            --notes "Bản build tự động cho ${BOARD} (${LANGUAGE}). Robot tự cập nhật qua Wi-Fi; merged-binary dùng để nạp bằng cáp." \
+            --notes "Bản build tự động cho ${BOARD} (${LANGUAGE}). Robot tự cập nhật qua Wi-Fi; merged-binary dùng để nạp bằng cáp. File có đuôi -fr là bản tiếng Pháp (không luyện thi Lý, không radio)." \
             --latest
